@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "type": "json-mapper",
+  "mappings": [
+    {
+      "from": "employee.age",
+      "to": "user.info.age",
+      "op": "copy"
+    },
+    {
+      "from": "employee.city",
+      "to": "user.info.cityaddress",
+      "op": "copy"
+    },
+    {
+      "from": "employee.name",
+      "to": "user.name",
+      "op": "copy"
+    }
+  ],
+  "exportDate": "2025-08-11T07:20:56.387Z",
+  "totalMappings": 3
+}
