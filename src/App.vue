@@ -57,6 +57,8 @@ const store = inject('store')
 const serverStatus = ref('disconnected')
 const serverStatusText = ref('서버 연결 안됨')
 
+
+
 // store 상태 변경 감지
 watch(() => store.state.mappings, (newMappings) => {
   console.log('=== App.vue에서 매핑 변경 감지 ===')
@@ -81,6 +83,8 @@ function exportAsCSV() {
 function exportAsSQL() {
   exportMappingsAsSQL('json-mapper', store.state.mappings)
 }
+
+
 
 // 서버 연동 함수들
 async function testConnection() {
@@ -199,7 +203,7 @@ const target = {
 }
 
 .center-panel {
-  width: 300px;
+  width: 500px;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 20px;
@@ -208,17 +212,17 @@ const target = {
 
 .footer {
   position: fixed;
-  bottom: 20px;
+  bottom: 15px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 10px;
   background: rgba(255, 255, 255, 0.95);
-  padding: 20px;
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -234,8 +238,8 @@ const target = {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 12px 24px;
-  border-radius: 25px;
+  padding: 10px 20px;
+  border-radius: 20px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
@@ -249,13 +253,13 @@ const target = {
 
 .export-btn {
   border: none;
-  padding: 10px 20px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 18px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
   color: white;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .export-btn.json {
@@ -289,8 +293,8 @@ const target = {
 }
 
 .server-section {
-  margin-top: 20px;
-  padding: 15px;
+  margin-top: 15px;
+  padding: 12px;
   border: 1px solid #eee;
   border-radius: 8px;
   background: #f9f9f9;
@@ -301,17 +305,17 @@ const target = {
 
 .server-controls {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .server-btn {
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 18px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
@@ -351,7 +355,10 @@ const target = {
   font-size: 12px;
   max-width: 400px;
   word-break: break-all;
+  position: relative;
 }
+
+
 
 .debug-info p {
   margin: 5px 0;
