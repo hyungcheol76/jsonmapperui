@@ -105,7 +105,18 @@ async function uploadToServer() {
   }
   
   try {
-    const result = await uploadMappingFile('json-mapper', store.state.mappings)
+    // 클라이언트 매핑 데이터를 서버 형식으로 정규화
+    const normalizedMappings = store.state.mappings
+      .filter(m => m?.sourcePath && m?.targetPath)
+      .map(m => ({
+        from: m.sourcePath,
+        to: m.targetPath,
+        op: 'copy'
+      }));
+    
+    console.log('업로드할 정규화된 매핑:', normalizedMappings);
+    
+    const result = await uploadMappingFile('json-mapper', normalizedMappings)
     if (result.ok) {
       alert('매핑 파일이 서버에 성공적으로 업로드되었습니다!')
     } else {
@@ -123,7 +134,18 @@ async function testTransform() {
   }
   
   try {
-    const result = await transformData('json-mapper', source)
+    // 실제 소스 데이터 사용 (하드코딩된 source 대신)
+    const testPayload = {
+      employee: {
+        age: '30',
+        city: 'Seoul',
+        name: 'John Doe'
+      }
+    }
+    
+    console.log('변환 테스트 시작:', testPayload)
+    const result = await transformData('json-mapper', testPayload)
+    
     if (result.ok) {
       console.log('변환 결과:', result.transformed)
       alert('변환 테스트 성공! 콘솔에서 결과를 확인하세요.')
@@ -131,6 +153,7 @@ async function testTransform() {
       alert(`변환 실패: ${result.error}`)
     }
   } catch (error) {
+    console.error('변환 테스트 오류:', error)
     alert(`변환 테스트 중 오류 발생: ${error.message}`)
   }
 }

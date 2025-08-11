@@ -146,7 +146,10 @@ function wireNodes() {
 function updateConnections() {
   const group = document.querySelector('.connections-group')
   const svg = document.querySelector('.connections-svg')
-  if (!group || !svg) return
+  if (!group || !svg) {
+    console.warn('SVG 요소를 찾을 수 없음:', { group: !!group, svg: !!svg })
+    return
+  }
 
   group.innerHTML = ''
   const svgRect = svg.getBoundingClientRect()
@@ -154,45 +157,89 @@ function updateConnections() {
   store.state.mappings.forEach((m) => {
     const s = document.querySelector(`[data-path="${m.sourcePath}"]`)
     const t = document.querySelector(`[data-path="${m.targetPath}"]`)
-    if (!s || !t) return
+    if (!s || !t) {
+      console.warn('소스 또는 타겟 요소를 찾을 수 없음:', {
+        sourcePath: m.sourcePath,
+        targetPath: m.targetPath,
+        sourceElement: !!s,
+        targetElement: !!t
+      })
+      return
+    }
 
-    const sr = s.getBoundingClientRect()
-    const tr = t.getBoundingClientRect()
+    try {
+      const sr = s.getBoundingClientRect()
+      const tr = t.getBoundingClientRect()
 
-    const startX = sr.right - svgRect.left
-    const startY = sr.top + sr.height / 2 - svgRect.top
-    const endX   = tr.left - svgRect.left
-    const endY   = tr.top + tr.height / 2 - svgRect.top
+      const startX = sr.right - svgRect.left
+      const startY = sr.top + sr.height / 2 - svgRect.top
+      const endX   = tr.left - svgRect.left
+      const endY   = tr.top + tr.height / 2 - svgRect.top
 
-    const c1x = startX + (endX - startX) * 0.3
-    const c1y = startY
-    const c2x = startX + (endX - startX) * 0.7
-    const c2y = endY
+      const c1x = startX + (endX - startX) * 0.3
+      const c1y = startY
+      const c2x = startX + (endX - startX) * 0.7
+      const c2y = endY
 
-    const d = `M ${startX} ${startY} C ${c1x} ${c1y} ${c2x} ${c2y} ${endX} ${endY}`
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    p.setAttribute('d', d)
-    p.setAttribute('stroke', '#4a90e2')
-    p.setAttribute('stroke-width', '2')
-    p.setAttribute('fill', 'none')
-    p.setAttribute('marker-end', 'url(#arrowhead)')
-    p.classList.add('connection-line')
-    p.addEventListener('click', () => removeMapping(m.id))
-    group.appendChild(p)
-
-    // 필요하면 Store에 path 저장
-    m.path = d
+      const d = `M ${startX} ${startY} C ${c1x} ${c1y} ${c2x} ${c2y} ${endX} ${endY}`
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      p.setAttribute('d', d)
+      p.setAttribute('stroke', '#4a90e2')
+      p.setAttribute('stroke-width', '2')
+      p.setAttribute('fill', 'none')
+      p.setAttribute('marker-end', 'url(#arrowhead)')
+      p.classList.add('connection-line')
+      p.addEventListener('click', () => removeMapping(m.id))
+      
+      // DOM에 안전하게 추가
+      if (group && group.appendChild) {
+        group.appendChild(p)
+        // Store에 path 저장
+        m.path = d
+        console.log('연결선 생성 완료:', { source: m.sourcePath, target: m.targetPath })
+      }
+    } catch (error) {
+      console.error('연결선 생성 중 오류:', error, m)
+    }
   })
 }
 
 onMounted(() => {
-  // 초기 렌더 안정화 후 jsPlumb 구성
-  setTimeout(() => {
-    initJsPlumb()
-    updateConnections()
-  }, 250)
+  console.log('=== MappingLayer 컴포넌트 마운트 시작 ===')
+  
+  // DOM 요소들이 준비되었는지 확인
+  const checkDOMReady = () => {
+    const mappingLayer = document.querySelector('.mapping-layer')
+    const connectionsSvg = document.querySelector('.connections-svg')
+    const connectionsGroup = document.querySelector('.connections-group')
+    
+    console.log('DOM 요소 상태:', {
+      mappingLayer: !!mappingLayer,
+      connectionsSvg: !!connectionsSvg,
+      connectionsGroup: !!connectionsGroup
+    })
+    
+    return mappingLayer && connectionsSvg && connectionsGroup
+  }
+  
+  // DOM이 준비될 때까지 대기
+  const waitForDOM = () => {
+    if (checkDOMReady()) {
+      console.log('DOM 준비 완료, 초기화 시작...')
+      initJsPlumb()
+      updateConnections()
+    } else {
+      console.log('DOM 아직 준비되지 않음, 재시도...')
+      setTimeout(waitForDOM, 100)
+    }
+  }
+  
+  // 초기 렌더 안정화 후 DOM 준비 확인
+  setTimeout(waitForDOM, 250)
 
   window.addEventListener('resize', updateConnections, { passive: true })
+  
+  console.log('=== MappingLayer 컴포넌트 마운트 완료 ===')
 })
 
 watch(() => store.state.mappings, () => {

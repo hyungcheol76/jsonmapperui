@@ -17,8 +17,28 @@ if (!fs.existsSync(MAP_DIR)) fs.mkdirSync(MAP_DIR, { recursive: true });
 
 function loadMappingFile(type = 'default') {
   const p = path.join(MAP_DIR, `mapping.${type}.json`);
-  if (!fs.existsSync(p)) throw new Error(`Mapping file not found: ${p}`);
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+  console.log(`[server] 매핑 파일 로딩 시도: ${p}`);
+  
+  if (!fs.existsSync(p)) {
+    console.error(`[server] 매핑 파일이 존재하지 않음: ${p}`);
+    throw new Error(`Mapping file not found: ${p}`);
+  }
+  
+  try {
+    const content = fs.readFileSync(p, 'utf8');
+    console.log(`[server] 매핑 파일 내용 읽기 성공: ${content.length} bytes`);
+    const parsed = JSON.parse(content);
+    console.log(`[server] 매핑 파일 파싱 성공:`, {
+      version: parsed.version,
+      type: parsed.type,
+      mappingsCount: parsed.mappings?.length || 0,
+      mappings: parsed.mappings?.map(m => ({ from: m.from, to: m.to, op: m.op }))
+    });
+    return parsed;
+  } catch (error) {
+    console.error(`[server] 매핑 파일 로딩/파싱 실패:`, error);
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -158,14 +178,23 @@ function applyEntry(out, entry, src) {
 }
 
 function transform(type, payload) {
+  console.log(`[server] 변환 시작: type=${type}, payload=`, payload);
+  
   const spec = loadMappingFile(type);
   if (!spec?.mappings || !Array.isArray(spec.mappings)) {
+    console.error(`[server] 유효하지 않은 매핑 스펙:`, spec);
     throw new Error(`Invalid mapping spec for type "${type}"`);
   }
+  
+  console.log(`[server] 매핑 스펙 로드 완료: ${spec.mappings.length}개 매핑`);
+  
   const out = {};
   for (const entry of spec.mappings) {
+    console.log(`[server] 매핑 엔트리 처리:`, entry);
     applyEntry(out, entry, payload);
   }
+  
+  console.log(`[server] 변환 완료, 결과:`, out);
   return out;
 }
 

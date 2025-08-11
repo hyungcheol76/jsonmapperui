@@ -1,22 +1,14 @@
 {
   "mappings": [
     {
-      "id": "employee.age__user.info.age",
-      "sourcePath": "employee.age",
-      "targetPath": "user.info.age",
-      "path": "M 663.0000457763672 155.7239646911621 C 796.6000442504883 155.7239646911621 974.7333755493164 201.3177146911621 1108.3333740234375 201.3177146911621"
+      "from": "employee.age",
+      "to": "user.info.age",
+      "op": "copy"
     },
     {
-      "id": "employee.city__user.info.cityaddress",
-      "sourcePath": "employee.city",
-      "targetPath": "user.info.cityaddress",
-      "path": "M 663.0000457763672 202.65104293823242 C 796.6000442504883 202.65104293823242 974.7333755493164 248.24479293823242 1108.3333740234375 248.24479293823242"
-    },
-    {
-      "id": "employee.name__user.name",
-      "sourcePath": "employee.name",
-      "targetPath": "user.name",
-      "path": "M 663.0000457763672 249.5781364440918 C 790.6000442504883 249.5781364440918 960.7333755493164 295.1718864440918 1088.3333740234375 295.1718864440918"
+      "from": "employee.name",
+      "to": "user.name",
+      "op": "copy"
     }
   ]
 }
