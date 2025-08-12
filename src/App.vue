@@ -7,6 +7,7 @@
     
     <div class="center-panel">
       <MappingPanel />
+      <FunctionPanel />
     </div>
 
     <MappingLayer />
@@ -48,6 +49,7 @@ import { inject, watch, ref, onMounted } from 'vue'
 import JsonTree from './components/JsonTree.vue'
 import MappingLayer from './components/MappingLayer.vue'
 import MappingPanel from './components/MappingPanel.vue'
+import FunctionPanel from './components/FunctionPanel.vue'
 import { exportMappings, exportMappingsAsCSV, exportMappingsAsSQL } from './utils/mapping-exporter.js'
 import { testServerConnection, uploadMappingFile, transformData } from './utils/server-api.js'
 
