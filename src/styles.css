@@ -19,6 +19,11 @@ body {
   min-height: 100vh;
 }
 
+/* ✅ plumb-root: 텔레포트 타겟 및 좌표 기준점 */
+.plumb-root {
+  position: relative;
+}
+
 .pane {
   background: #2d2d2d;
   border-radius: 12px;

@@ -1,6 +1,6 @@
 <template>
   <div class="mapping-layer" ref="mappingLayer">
-    <svg class="connections-svg">
+    <svg class="connections-svg" style="pointer-events: none;">
       <defs>
         <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
           <polygon points="0 0, 10 3.5, 0 7" fill="#4a90e2" />
@@ -8,15 +8,15 @@
       </defs>
       <g class="connections-group">
         <path
-          v-for="m in store.state.mappings"
-          :key="m.id"
-          :d="m.path"
+          v-for="mapping in directMappings"
+          :key="mapping.id"
+          :d="mapping.path"
           stroke="#4a90e2"
           stroke-width="2"
           fill="none"
           marker-end="url(#arrowhead)"
           class="connection-line"
-          @click="removeMapping(m.id)"
+          @click="removeMapping(mapping.id)"
         />
       </g>
     </svg>
@@ -24,12 +24,18 @@
 </template>
 
 <script setup>
-import { inject, onMounted, onBeforeUnmount, watch, ref, nextTick } from 'vue'
+import { inject, onMounted, onBeforeUnmount, watch, ref, nextTick, computed } from 'vue'
 import { jsPlumb } from 'jsplumb'
 
 const store = inject('store')
 const mappingLayer = ref(null)
 let jsPlumbInstance = null
+
+// 직접 매핑만 필터링 (펑션 매핑 제외)
+const directMappings = computed(() => {
+  if (!store.state.mappings) return []
+  return store.state.mappings.filter(m => !m.type || m.type === 'direct')
+})
 
 function removeMapping(id) {
   store.actions.removeMapping(id)
@@ -88,8 +94,11 @@ function initJsPlumb() {
     )
     if (!exists) {
       store.actions.addMapping(sourcePath, targetPath)
-      // 선은 우리가 SVG로 그림
-      nextTick(() => updateConnections())
+      // 좌표만 계산하고 Vue가 렌더링 처리
+      nextTick(() => {
+        console.log('새 매핑 추가 후 좌표 계산 실행')
+        updateConnections()
+      })
     }
     return false // 🔴 jsPlumb 기본 연결 생성 안 함(중복 방지)
   })
@@ -142,66 +151,69 @@ function wireNodes() {
   }, 120)
 }
 
-// SVG 라인 다시 그리기
+// SVG 라인 좌표 계산 (DOM 조작 없음)
 function updateConnections() {
-  const group = document.querySelector('.connections-group')
-  const svg = document.querySelector('.connections-svg')
-  if (!group || !svg) {
-    console.warn('SVG 요소를 찾을 수 없음:', { group: !!group, svg: !!svg })
+  console.log('=== 직접 연결선 좌표 계산 시작 ===')
+  
+  const mappings = directMappings.value
+  if (!mappings?.length) {
+    console.log('직접 매핑이 없어서 좌표 계산 생략')
     return
   }
 
-  group.innerHTML = ''
-  const svgRect = svg.getBoundingClientRect()
+  const svg = document.querySelector('.connections-svg')
+  if (!svg) {
+    console.warn('SVG 요소를 찾을 수 없음')
+    return
+  }
 
-  store.state.mappings.forEach((m) => {
-    const s = document.querySelector(`[data-path="${m.sourcePath}"]`)
-    const t = document.querySelector(`[data-path="${m.targetPath}"]`)
-    if (!s || !t) {
-      console.warn('소스 또는 타겟 요소를 찾을 수 없음:', {
-        sourcePath: m.sourcePath,
-        targetPath: m.targetPath,
-        sourceElement: !!s,
-        targetElement: !!t
-      })
-      return
-    }
+  try {
+    const svgRect = svg.getBoundingClientRect()
+    console.log('처리할 직접 매핑 개수:', mappings.length)
 
-    try {
-      const sr = s.getBoundingClientRect()
-      const tr = t.getBoundingClientRect()
-
-      const startX = sr.right - svgRect.left
-      const startY = sr.top + sr.height / 2 - svgRect.top
-      const endX   = tr.left - svgRect.left
-      const endY   = tr.top + tr.height / 2 - svgRect.top
-
-      const c1x = startX + (endX - startX) * 0.3
-      const c1y = startY
-      const c2x = startX + (endX - startX) * 0.7
-      const c2y = endY
-
-      const d = `M ${startX} ${startY} C ${c1x} ${c1y} ${c2x} ${c2y} ${endX} ${endY}`
-      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-      p.setAttribute('d', d)
-      p.setAttribute('stroke', '#4a90e2')
-      p.setAttribute('stroke-width', '2')
-      p.setAttribute('fill', 'none')
-      p.setAttribute('marker-end', 'url(#arrowhead)')
-      p.classList.add('connection-line')
-      p.addEventListener('click', () => removeMapping(m.id))
-      
-      // DOM에 안전하게 추가
-      if (group && group.appendChild) {
-        group.appendChild(p)
-        // Store에 path 저장
-        m.path = d
-        console.log('연결선 생성 완료:', { source: m.sourcePath, target: m.targetPath })
+    mappings.forEach((mapping, index) => {
+      if (!mapping.sourcePath || !mapping.targetPath) {
+        console.log(`매핑 ${index + 1}: 필수 속성 누락`, mapping)
+        return
       }
-    } catch (error) {
-      console.error('연결선 생성 중 오류:', error, m)
-    }
-  })
+
+      const sourceElement = document.querySelector(`[data-path="${mapping.sourcePath}"]`)
+      const targetElement = document.querySelector(`[data-path="${mapping.targetPath}"]`)
+      
+      if (!sourceElement || !targetElement) {
+        console.log(`매핑 ${index + 1}: 엘리먼트를 찾을 수 없음`, {
+          sourcePath: mapping.sourcePath,
+          targetPath: mapping.targetPath,
+          sourceElement: !!sourceElement,
+          targetElement: !!targetElement
+        })
+        return
+      }
+
+      try {
+        const sourceRect = sourceElement.getBoundingClientRect()
+        const targetRect = targetElement.getBoundingClientRect()
+
+        // SVG 기준 상대좌표
+        const startX = sourceRect.right - svgRect.left
+        const startY = sourceRect.top + sourceRect.height / 2 - svgRect.top
+        const endX = targetRect.left - svgRect.left
+        const endY = targetRect.top + targetRect.height / 2 - svgRect.top
+
+        // 베지어 곡선으로 연결선 경로 생성
+        const midX = (startX + endX) / 2
+        mapping.path = `M ${startX} ${startY} Q ${midX} ${startY} ${endX} ${endY}`
+        
+        console.log(`매핑 ${index + 1}: 연결선 경로 계산 완료`, mapping.path)
+      } catch (e) {
+        console.error(`매핑 ${index + 1}: 좌표 계산 오류`, e)
+      }
+    })
+  } catch (error) {
+    console.error('updateConnections 전체 오류:', error)
+  }
+  
+  console.log('=== 직접 연결선 좌표 계산 완료 ===')
 }
 
 onMounted(() => {

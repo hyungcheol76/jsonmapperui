@@ -1,5 +1,5 @@
 <template>
-  <div class="layout">
+  <div class="layout plumb-root">
     <div class="pane">
       <h2>소스 JSON</h2>
       <JsonTree side="src" :data="source" path="" />

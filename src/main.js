@@ -7,6 +7,7 @@ export const createStore = () => {
     pendingSource: null,
     mappings: [],
     selectedNode: null,  // 선택된 노드 추가
+    customDragState: null, // 커스텀 드래그 상태 추가
   })
 
   const actions = {
@@ -84,6 +85,48 @@ export const createStore = () => {
       state.mappings = []
       console.log(`모든 매핑 삭제: ${beforeCount} -> 0`)
       console.log('매핑 배열 초기화 완료')
+    },
+
+    // 소스 → 펑션 연결 생성
+    addFunctionConnection(sourcePath, functionId) {
+      console.log('=== addFunctionConnection 호출 ===')
+      console.log('소스 경로:', sourcePath, '펑션 ID:', functionId)
+      
+      if (!sourcePath || !functionId) {
+        console.log('❌ 경로 정보가 없어서 펑션 연결 생성 실패')
+        return
+      }
+      
+      const exists = state.mappings.some(m => 
+        m.sourcePath === sourcePath && 
+        m.functionId === functionId
+      )
+      
+      if (!exists) {
+        const newMapping = { 
+          id: `func_${sourcePath}__${functionId}`, 
+          type: 'function',
+          sourcePath, 
+          functionId 
+        }
+        console.log('새로운 펑션 연결 생성:', newMapping)
+        state.mappings.push(newMapping)
+        console.log('펑션 연결 추가 후 mappings 배열:', state.mappings)
+      } else {
+        console.log('이미 존재하는 펑션 연결:', sourcePath, '->', functionId)
+      }
+    },
+
+    // 커스텀 드래그 시작 시 소스 경로 설정
+    setCustomDragSource(sourcePath) {
+      console.log('=== setCustomDragSource 호출 ===', sourcePath)
+      state.customDragState = { sourcePath }
+    },
+
+    // 커스텀 드래그 종료 시 상태 클리어
+    clearCustomDragState() {
+      console.log('=== clearCustomDragState 호출 ===')
+      state.customDragState = null
     },
 
     // 노드 선택 함수
