@@ -2,31 +2,56 @@
   "mappings": [
     {
       "from": "employee.age",
-      "to": "user.info.age",
+      "to": "function:1755501567562",
       "op": "copy",
-      "type": "direct"
+      "type": "function-input",
+      "functionId": 1755501567562
     },
     {
       "from": "employee.city",
-      "to": "function:1755498274768",
+      "to": "function:1755501567562",
       "op": "copy",
       "type": "function-input",
-      "functionId": 1755498274768
+      "functionId": 1755501567562
     },
     {
-      "from": "employee.name",
-      "to": "function:1755498274768",
-      "op": "copy",
-      "type": "function-input",
-      "functionId": 1755498274768
-    },
-    {
-      "from": "function:1755498274768",
-      "to": "user.name",
+      "from": "function:1755501567562",
+      "to": "user.info.cityaddress",
       "op": "function",
       "type": "function-output",
-      "functionId": 1755498274768,
-      "script": "return sourceParams['employee.city'] + ' ' + sourceParams['employee.name'] + ' is my friend2';"
+      "functionId": 1755501567562,
+      "script": "// N:1 매핑 (여러 소스 → 단일 타겟)\nreturn { result: sourceParams['employee.age'] + ' ' + sourceParams['employee.city'] };"
+    },
+    {
+      "from": "employee.fullInfo",
+      "to": "function:1755501593405",
+      "op": "copy",
+      "type": "function-input",
+      "functionId": 1755501593405
+    },
+    {
+      "from": "function:1755501593405",
+      "to": "user.info.age",
+      "op": "function",
+      "type": "function-output",
+      "functionId": 1755501593405,
+      "script": "// 1:N 매핑 (단일 소스 → 여러 타겟)\nconst parts = sourceValue.split(',');\nreturn {\n  age: { value: parts[0]?.trim(), path: 'user.info.age' },\n  firstName: { value: parts[0]?.trim(), path: 'user.firstName' },\n  city: { value: parts[0]?.trim(), path: 'user.city' }\n};"
+    },
+    {
+      "from": "function:1755501593405",
+      "to": "user.firstName",
+      "op": "function",
+      "type": "function-output",
+      "functionId": 1755501593405,
+      "script": "// 1:N 매핑 (단일 소스 → 여러 타겟)\nconst parts = sourceValue.split(',');\nreturn {\n  age: { value: parts[0]?.trim(), path: 'user.info.age' },\n  firstName: { value: parts[0]?.trim(), path: 'user.firstName' },\n  city: { value: parts[0]?.trim(), path: 'user.city' }\n};"
+    },
+    {
+      "from": "function:1755501593405",
+      "to": "user.city",
+      "op": "function",
+      "type": "function-output",
+      "functionId": 1755501593405,
+      "script": "// 1:N 매핑 (단일 소스 → 여러 타겟)\nconst parts = sourceValue.split(',');\nreturn {\n  age: { value: parts[0]?.trim(), path: 'user.info.age' },\n  firstName: { value: parts[0]?.trim(), path: 'user.firstName' },\n  city: { value: parts[0]?.trim(), path: 'user.city' }\n};"
     }
   ]
 }

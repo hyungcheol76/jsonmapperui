@@ -221,7 +221,8 @@ async function testTransform() {
       employee: {
         age: '30',
         city: 'Seoul',
-        name: 'John Doe'
+        name: 'John,Doe', // 쉼표 구분자 추가
+        fullInfo: 'John,Doe,30,Seoul' // 1:N 매핑 테스트용 데이터 (4개 부분)
       }
     }
     
@@ -250,6 +251,7 @@ const source = {
     age: 'string',
     city: 'string',
     name: 'string',
+    fullInfo: 'string', // 1:N 매핑 테스트용 필드 추가
   }
 }
 
@@ -259,7 +261,11 @@ const target = {
       age: 'string',
       cityaddress: 'string',
     },
-    name: 'string'
+    name: 'string',
+    firstName: 'string', // 1:N 매핑 테스트용 필드 추가
+    lastName: 'string',  // 1:N 매핑 테스트용 필드 추가
+    age: 'string',       // 1:N 매핑 테스트용 필드 추가
+    city: 'string'       // 1:N 매핑 테스트용 필드 추가
   }
 }
 </script>

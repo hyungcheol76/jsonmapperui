@@ -246,7 +246,7 @@ function applyEntry(out, entry, src, allMappings) {
     return;
   }
 
-  const raw = entry.from ? deepGet(src, entry.from) : undefined;
+  let raw = entry.from ? deepGet(src, entry.from) : undefined;
   
   // 함수 실행 시 파라미터 객체 생성
   let sourceParams = {};
@@ -280,6 +280,21 @@ function applyEntry(out, entry, src, allMappings) {
           console.log('[server] function-output에서 소스 파라미터 추가:', mapping.from, value);
         }
       });
+      
+      // function-output의 경우 sourceValue를 첫 번째 function-input 값으로 설정
+      const firstInputMapping = allMappings.find(mapping => 
+        mapping.type === 'function-input' && 
+        mapping.functionId === entry.functionId &&
+        mapping.from && 
+        !mapping.from.startsWith('function:')
+      );
+      
+      if (firstInputMapping) {
+        const sourceValue = deepGet(src, firstInputMapping.from);
+        console.log('[server] function-output sourceValue 설정:', firstInputMapping.from, sourceValue);
+        // sourceValue를 raw로 설정하여 applyOp에 전달
+        raw = sourceValue;
+      }
     }
   }
   
@@ -291,10 +306,31 @@ function applyEntry(out, entry, src, allMappings) {
   
   const val = applyOp(entry.op, args, raw, sourceParams, targetParams);
   
-  // function-output 타입의 경우, 함수 실행 결과를 targetPath에만 매핑
+  // function-output 타입의 경우, 함수 실행 결과를 targetPath에 매핑
   if (entry.type === 'function-output' && entry.to) {
     console.log('[server] function-output 결과를 targetPath에 매핑:', entry.to, val);
-    deepSet(out, entry.to, val);
+    
+    // 객체 반환 처리: 객체인 경우 각 속성을 개별 매핑
+    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+      console.log('[server] 객체 반환 감지, 속성별 매핑:', val);
+      Object.entries(val).forEach(([key, item]) => {
+        // path와 value가 있는 새로운 형식 처리
+        if (item && typeof item === 'object' && item.path && item.value !== undefined) {
+          console.log('[server] 경로 매핑:', item.path, '=', item.value);
+          deepSet(out, item.path, item.value);
+        } else {
+          // 기존 방식 (하위 호환성)
+          const targetPath = entry.to.includes('.') ? entry.to : `${entry.to}.${key}`;
+          console.log('[server] 속성 매핑:', key, '->', targetPath, '=', item);
+          deepSet(out, targetPath, item);
+        }
+      });
+    } else {
+      // 단일 값인 경우 기본 키 사용
+      const targetPath = entry.to.includes('.') ? entry.to : `${entry.to}.result`;
+      console.log('[server] 단일 값 매핑:', targetPath, '=', val);
+      deepSet(out, targetPath, val);
+    }
   } else if (entry.type === 'function-input') {
     // function-input 타입은 중간 단계이므로 결과에 포함하지 않음
     console.log('[server] function-input 타입 무시 (중간 단계):', entry.from, '->', entry.to);

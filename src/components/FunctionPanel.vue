@@ -96,6 +96,9 @@
         </div>
         <div class="script-modal-header">
           <h3>펑션 스크립트 편집</h3>
+          <div class="connection-type-badge" v-if="connectionType">
+            {{ connectionType }} 매핑
+          </div>
           <button class="close-btn" @click="closeScriptModal">×</button>
         </div>
         <div class="script-modal-body">
@@ -126,7 +129,7 @@
             <textarea 
               v-model="scriptCode" 
               class="script-editor"
-              placeholder="// 파라미터:&#10;// - sourceValue: 소스에서 받은 값&#10;// - sourceParams: 연결된 소스 파라미터 객체 {employee.name: '값', ...}&#10;// - targetParams: 연결된 타겟 파라미터 객체 {user.name: '값', ...}&#10;//&#10;// 예시:&#10;return sourceValue.toUpperCase();&#10;&#10;// 또는 여러 소스 값 사용:&#10;// return sourceParams['employee.name'] + ' ' + sourceParams['employee.age'];&#10;&#10;// 또는 조건부 처리:&#10;// if (sourceValue.length > 10) {&#10;//   return sourceValue.substring(0, 10) + '...';&#10;// }&#10;// return sourceValue;"
+              placeholder="// 파라미터:&#10;// - sourceValue: 소스에서 받은 값&#10;// - sourceParams: 연결된 소스 파라미터 객체 {employee.name: '값', ...}&#10;// - targetParams: 연결된 타겟 파라미터 객체 {user.name: '값', ...}&#10;//&#10;// ⚠️ 모든 함수는 객체를 반환해야 합니다!&#10;//&#10;// 예시 (1:1 매핑):&#10;return { result: sourceValue.toUpperCase() };&#10;&#10;// 예시 (N:1 매핑 - 여러 소스 → 하나):&#10;return { result: sourceParams['employee.name'] + ' ' + sourceParams['employee.age'] };&#10;&#10;// 예시 (1:N 매핑 - 하나 → 여러):&#10;const parts = sourceValue.split(',');&#10;return {&#10;  firstName: parts[0]?.trim(),&#10;  lastName: parts[1]?.trim(),&#10;  userAge: parts[2]?.trim(),&#10;  userCity: parts[3]?.trim()&#10;};&#10;&#10;// 🆕 예시 (계층 구조 매핑 - path 지정):&#10;const parts = sourceValue.split(',');&#10;return {&#10;  firstName: { value: parts[0]?.trim(), path: 'user.firstName' },&#10;  lastName: { value: parts[1]?.trim(), path: 'user.lastName' },&#10;  age: { value: parts[2]?.trim(), path: 'user.info.age' },&#10;  city: { value: parts[3]?.trim(), path: 'user.info.city' }&#10;};&#10;&#10;// 예시 (조건부 처리):&#10;if (sourceValue.length > 10) {&#10;  return { result: sourceValue.substring(0, 10) + '...' };&#10;} else {&#10;  return { result: sourceValue };&#10;}"
             ></textarea>
           </div>
           
@@ -191,6 +194,7 @@ const scriptModalVisible = ref(false)
 const scriptCode = ref('')
 const previewInput = ref('')
 const previewOutput = ref('')
+const connectionType = ref('')
 
 // 드래그 상태(아이콘 이동)
 const isDragging = ref(false)
@@ -647,18 +651,81 @@ function hideContextMenu() {
   selectedFunction.value = null // 선택된 펑션도 클리어
 }
 
+/** 연결 종류 분석 */
+function analyzeConnectionType(functionId) {
+  const functionMappings = state.mappings?.filter(m => m.functionId == functionId) || []
+  
+  // function-input 매핑 수 (소스 개수)
+  const inputCount = functionMappings.filter(m => m.type === 'function').length
+  
+  // function-to-target 매핑 수 (타겟 개수)  
+  const outputCount = functionMappings.filter(m => m.type === 'function-to-target').length
+  
+  console.log('연결 종류 분석:', { functionId, inputCount, outputCount, mappings: functionMappings })
+  
+  if (inputCount > 1 && outputCount === 1) {
+    return 'N:1' // 여러 소스 → 하나 타겟
+  } else if (inputCount === 1 && outputCount > 1) {
+    return '1:N' // 하나 소스 → 여러 타겟
+  } else if (inputCount === 1 && outputCount === 1) {
+    return '1:1' // 하나 소스 → 하나 타겟
+  } else {
+    return 'N:N' // 여러 소스 → 여러 타겟
+  }
+}
+
+/** 템플릿 코드 생성 */
+function generateTemplateCode(connectionType, sourceParams, targetParams) {
+  switch (connectionType) {
+    case '1:1':
+      return `// 1:1 매핑 (단일 소스 → 단일 타겟)
+return { result: sourceValue.toUpperCase() };`
+      
+    case 'N:1':
+      const sourceExamples = sourceParams.slice(0, 2)
+      return `// N:1 매핑 (여러 소스 → 단일 타겟)
+return { result: sourceParams['${sourceExamples[0]}'] + ' ' + sourceParams['${sourceExamples[1]}'] };`
+      
+    case '1:N':
+      const targetExamples = targetParams.slice(0, 3)
+      return `// 1:N 매핑 (단일 소스 → 여러 타겟)
+const parts = sourceValue.split(',');
+return {
+  ${targetExamples.map(param => `${param.split('.').pop()}: { value: parts[0]?.trim(), path: '${param}' }`).join(',\n  ')}
+};`
+      
+    default:
+      return `// 기본 템플릿
+return { result: sourceValue };`
+  }
+}
+
 /** 스크립트 편집기 열기 */
 function openScriptEditor() {
   if (!selectedFunction.value) return
+  
+  // 연결 종류 분석
+  connectionType.value = analyzeConnectionType(selectedFunction.value.id)
+  console.log('연결 종류:', connectionType.value)
   
   // 매핑에서 기존 스크립트 로드
   const functionMappings = state.mappings?.filter(m => 
     m.functionId == selectedFunction.value.id && m.type === 'function'
   ) || []
   
-  // 첫 번째 매핑에서 스크립트 가져오기 (모든 매핑이 동일한 스크립트를 가짐)
-  const existingScript = functionMappings[0]?.script || ''
-  scriptCode.value = existingScript
+  let scriptToLoad = ''
+  
+  // 기존 스크립트가 있으면 사용, 없으면 템플릿 생성
+  if (functionMappings[0]?.script) {
+    scriptToLoad = functionMappings[0].script
+    console.log('기존 스크립트 로드:', scriptToLoad)
+  } else {
+    // 템플릿 코드 생성
+    scriptToLoad = generateTemplateCode(connectionType.value, sourceParams.value, targetParams.value)
+    console.log('템플릿 코드 생성:', scriptToLoad)
+  }
+  
+  scriptCode.value = scriptToLoad
   previewInput.value = ''
   previewOutput.value = ''
   
@@ -669,7 +736,7 @@ function openScriptEditor() {
   scriptModalVisible.value = true
   contextMenuVisible.value = false
   
-  console.log('스크립트 편집기 열림:', selectedFunction.value.id, '기존 스크립트:', existingScript)
+  console.log('스크립트 편집기 열림:', selectedFunction.value.id, '연결 종류:', connectionType)
 }
 
 /** 스크립트 테스트 */
@@ -708,7 +775,13 @@ const testTargetParams = targetParams.value.reduce((obj, param) => {
 }, {})
     
     const result = testFunction(previewInput.value, testSourceParams, testTargetParams)
-    previewOutput.value = String(result)
+    
+    // 객체 반환 처리
+    if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
+      previewOutput.value = JSON.stringify(result, null, 2)
+    } else {
+      previewOutput.value = String(result)
+    }
   } catch (error) {
     previewOutput.value = `오류: ${error.message}`
   }
@@ -1013,6 +1086,16 @@ defineExpose({
   margin: 0;
   color: #e0e0e0;
   font-size: 1.2rem;
+}
+
+.connection-type-badge {
+  background: #8b5cf6;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 10px;
 }
 
 .close-btn {
