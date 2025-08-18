@@ -17,6 +17,13 @@
         class="src-port"
         :data-src-port="path"
       ></span>
+      
+      <!-- ✅ 타겟 엘리먼트용 파란색 도커 (리프 노드에만) -->
+      <span 
+        v-if="isLeaf && side === 'dst'"
+        class="dst-port"
+        :data-dst-port="path"
+      ></span>
     </div>
 
     <ul v-if="!isLeaf">
@@ -153,6 +160,21 @@ function onMouseUp(event) {
 .src-port {
   position: absolute;
   right: -2px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: #4a90e2;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.dst-port {
+  position: absolute;
+  left: -2px;
   top: 50%;
   width: 8px;
   height: 8px;
