@@ -34,8 +34,9 @@
         draggable="false"
       >
         <span class="function-icon">{{ func.label }}</span>
-        <!-- ✅ 실제 DOM 포트 -->
-        <span class="func-port" :data-func-port="String(func.id)"></span>
+        <!-- ✅ 실제 DOM 포트 (왼쪽: 소스->F, 오른쪽: F->타겟) -->
+        <span class="func-port-left" :data-func-port-left="String(func.id)"></span>
+        <span class="func-port-right" :data-func-port-right="String(func.id)"></span>
       </div>
     </div>
 
@@ -420,18 +421,34 @@ watch(functions, async () => {
 }
 
 /* 포트는 실제 DOM으로 둡니다 (pseudo는 좌표 못 잡음) */
-.func-port {
+.func-port-left {
   position: absolute;
   left: -3px;
   top: 50%;
   width: 8px;
   height: 8px;
   transform: translateY(-50%);
-  background: #764ba2;
+  background: #4a90e2;
   border: 2px solid #fff;
   border-radius: 50%;
   pointer-events: none;
   z-index: 3;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.func-port-right {
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%);
+  background: #28a745;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .function-icon-item:hover {
