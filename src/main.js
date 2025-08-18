@@ -117,6 +117,37 @@ export const createStore = () => {
       }
     },
 
+    // F → 타겟 연결 생성
+    addFunctionToTargetConnection(functionId, targetPath) {
+      console.log('=== addFunctionToTargetConnection 호출 ===')
+      console.log('펑션 ID:', functionId, '타겟 경로:', targetPath)
+      
+      if (!functionId || !targetPath) {
+        console.log('❌ 경로 정보가 없어서 F → 타겟 연결 생성 실패')
+        return
+      }
+      
+      const exists = state.mappings.some(m => 
+        m.functionId === functionId && 
+        m.targetPath === targetPath &&
+        m.type === 'function-to-target'
+      )
+      
+      if (!exists) {
+        const newMapping = { 
+          id: `func2target_${functionId}__${targetPath}`, 
+          type: 'function-to-target',
+          functionId, 
+          targetPath 
+        }
+        console.log('새로운 F → 타겟 연결 생성:', newMapping)
+        state.mappings.push(newMapping)
+        console.log('F → 타겟 연결 추가 후 mappings 배열:', state.mappings)
+      } else {
+        console.log('이미 존재하는 F → 타겟 연결:', functionId, '->', targetPath)
+      }
+    },
+
     // 커스텀 드래그 시작 시 소스 경로 설정
     setCustomDragSource(sourcePath) {
       console.log('=== setCustomDragSource 호출 ===', sourcePath)

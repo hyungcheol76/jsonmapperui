@@ -77,9 +77,30 @@ function onMouseDown(event) {
   if (!isLeaf.value) return
   
   console.log('=== TreeNode 커스텀 드래그 시작 ===', props.path)
+  console.log('드래그 시작 엘리먼트 정보:', {
+    path: props.path,
+    side: props.side,
+    isLeaf: isLeaf.value
+  })
   
-  // 커스텀 드래그 상태 설정
-  store.actions.setCustomDragSource(props.path)
+  // 소스에서의 드래그 (기존 로직)
+  if (props.side === 'src') {
+    console.log('소스 엘리먼트에서 드래그 시작')
+    store.actions.setCustomDragSource(props.path)
+  }
+  // 타겟에서의 드래그 (새로운 로직)
+  else if (props.side === 'dst') {
+    console.log('타겟 엘리먼트에서 드래그 시작')
+    // 타겟 → F 드래그 상태 설정 (특별한 형식으로 구분)
+    const targetDragSource = `target:${props.path}`
+    store.actions.setCustomDragSource(targetDragSource)
+    
+    // FunctionPanel에서 드래그 미리보기 선 시작
+    const functionPanel = document.querySelector('.function-panel')
+    if (functionPanel && functionPanel.__vueParentComponent?.exposed?.startDragPreview) {
+      functionPanel.__vueParentComponent.exposed.startDragPreview(targetDragSource, event.clientX, event.clientY)
+    }
+  }
   
   isDragging.value = true
   dragOffset.value = {
@@ -97,13 +118,24 @@ function onMouseDown(event) {
 function onMouseMove(event) {
   if (!isDragging.value) return
   
-  // 드래그 중일 때 시각적 피드백 (선택사항)
+  // 드래그 중일 때 시각적 피드백
   const deltaX = event.clientX - dragOffset.value.x
   const deltaY = event.clientY - dragOffset.value.y
   
   // 드래그 거리가 일정 이상일 때만 드래그로 인식
   if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
     console.log('커스텀 드래그 중:', props.path, 'delta:', deltaX, deltaY)
+    
+    // 타겟에서 드래그 중일 때 시각적 피드백 강화
+    if (props.side === 'dst') {
+      // 드래그 중인 타겟 엘리먼트에 시각적 피드백
+      // 전역 이벤트에서는 currentTarget이 undefined일 수 있으므로 DOM에서 직접 찾기
+      const targetElement = document.querySelector(`[data-path="${props.path}"]`)
+      if (targetElement && targetElement.classList && targetElement.classList.contains('node')) {
+        targetElement.style.transform = 'scale(1.05)'
+        targetElement.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.3)'
+      }
+    }
   }
 }
 
@@ -112,12 +144,28 @@ function onMouseUp(event) {
   
   console.log('=== TreeNode 커스텀 드래그 종료 ===', props.path)
   
+  // 타겟에서 드래그 종료 시 시각적 피드백 복원
+  if (props.side === 'dst') {
+    // 전역 이벤트에서는 currentTarget이 undefined일 수 있으므로 DOM에서 직접 찾기
+    const targetElement = document.querySelector(`[data-path="${props.path}"]`)
+    if (targetElement && targetElement.classList && targetElement.classList.contains('node')) {
+      targetElement.style.transform = 'scale(1)'
+      targetElement.style.boxShadow = 'none'
+    }
+  }
+  
   // 커스텀 드래그 상태는 즉시 클리어하지 않고 약간 지연
   // FunctionPanel에서 mouseup 이벤트로 접근할 수 있도록
   setTimeout(() => {
     store.actions.clearCustomDragState()
     console.log('커스텀 드래그 상태 클리어됨 (지연)')
   }, 100)
+  
+  // FunctionPanel에서 드래그 미리보기 선 종료
+  const functionPanel = document.querySelector('.function-panel')
+  if (functionPanel && functionPanel.__vueParentComponent?.exposed?.stopDragPreview) {
+    functionPanel.__vueParentComponent.exposed.stopDragPreview()
+  }
   
   isDragging.value = false
   
