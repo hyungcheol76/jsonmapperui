@@ -17,7 +17,9 @@
       <JsonTree side="dst" :data="target" path="" />
     </div>
   </div>
-  <div class="footer">
+  
+  <!-- 메인 페이지 하단 서버 연동 영역 -->
+  <div class="bottom-controls">
     <div class="button-group">
       <button class="ghost" @click="actions.clearMappings">모든 매핑 삭제</button>
       <button class="export-btn json" @click="exportAsJSON">JSON 내보내기</button>
@@ -37,9 +39,8 @@
       </div>
     </div>
     
-    <div class="debug-info">
+    <div class="mapping-info">
       <p>현재 매핑 개수: {{ store.state.mappings.length }}</p>
-      <p>매핑 정보: {{ JSON.stringify(store.state.mappings, null, 2) }}</p>
     </div>
   </div>
 </template>
@@ -90,6 +91,7 @@ function exportAsSQL() {
 
 // 서버 연동 함수들
 async function testConnection() {
+  console.log('testConnection 함수 호출됨')
   serverStatus.value = 'connecting'
   serverStatusText.value = '연결 중...'
   
@@ -105,6 +107,7 @@ async function testConnection() {
 }
 
 async function uploadToServer() {
+  console.log('uploadToServer 함수 호출됨')
   if (store.state.mappings.length === 0) {
     alert('업로드할 매핑 정보가 없습니다.')
     return
@@ -113,14 +116,86 @@ async function uploadToServer() {
   try {
     // 클라이언트 매핑 데이터를 서버 형식으로 정규화
     const normalizedMappings = store.state.mappings
-      .filter(m => m?.sourcePath && m?.targetPath)
-      .map(m => ({
-        from: m.sourcePath,
-        to: m.targetPath,
-        op: 'copy'
-      }));
+      .filter(m => {
+        console.log('필터링 검사:', m);
+        
+        // function-to-target 타입은 targetPath만 있으면 됨
+        if (m.type === 'function-to-target') {
+          const hasTarget = !!m?.targetPath;
+          console.log('function-to-target 필터링:', hasTarget);
+          return hasTarget;
+        }
+        // function 타입은 sourcePath와 functionId가 있어야 함
+        if (m.type === 'function') {
+          const hasSource = !!m?.sourcePath;
+          const hasFunctionId = !!m?.functionId;
+          console.log('function 필터링:', hasSource && hasFunctionId);
+          return hasSource && hasFunctionId;
+        }
+        // function-input 타입은 sourcePath만 있으면 됨
+        if (m.type === 'function-input') {
+          const hasSource = !!m?.sourcePath;
+          console.log('function-input 필터링:', hasSource);
+          return hasSource;
+        }
+        // 다른 타입은 sourcePath와 targetPath가 모두 있어야 함
+        const hasSource = !!m?.sourcePath;
+        const hasTarget = !!m?.targetPath;
+        console.log('기타 타입 필터링:', hasSource && hasTarget);
+        return hasSource && hasTarget;
+      })
+      .map(m => {
+        if (m.type === 'function') {
+          // 소스 → 펑션 매핑 처리 (스크립트 없이 단순 연결만)
+          return {
+            from: m.sourcePath,
+            to: `function:${m.functionId}`,
+            op: 'copy', // 단순 복사로 변경
+            type: 'function-input',
+            functionId: m.functionId // functionId 추가
+          };
+        } else if (m.type === 'function-to-target') {
+          // 펑션 → 타겟 매핑 처리 (실제 스크립트 실행)
+          return {
+            from: `function:${m.functionId}`,
+            to: m.targetPath,
+            op: 'function',
+            type: 'function-output',
+            functionId: m.functionId,
+            script: m.script || ''
+          };
+        } else {
+          // 일반 매핑 처리
+          return {
+            from: m.sourcePath,
+            to: m.targetPath,
+            op: 'copy',
+            type: 'direct'
+          };
+        }
+      });
     
     console.log('업로드할 정규화된 매핑:', normalizedMappings);
+    console.log('원본 매핑 데이터:', store.state.mappings);
+    console.log('매핑 타입별 개수:', {
+      function: store.state.mappings.filter(m => m.type === 'function').length,
+      'function-to-target': store.state.mappings.filter(m => m.type === 'function-to-target').length,
+      direct: store.state.mappings.filter(m => !m.type || m.type === 'direct').length
+    });
+    console.log('필터링 전 매핑 개수:', store.state.mappings.length);
+    console.log('필터링 후 매핑 개수:', normalizedMappings.length);
+    
+    // 각 매핑의 상세 정보 출력
+    store.state.mappings.forEach((mapping, index) => {
+      console.log(`매핑 ${index + 1}:`, {
+        id: mapping.id,
+        type: mapping.type,
+        sourcePath: mapping.sourcePath,
+        targetPath: mapping.targetPath,
+        functionId: mapping.functionId,
+        script: mapping.script
+      });
+    });
     
     const result = await uploadMappingFile('json-mapper', normalizedMappings)
     if (result.ok) {
@@ -134,6 +209,7 @@ async function uploadToServer() {
 }
 
 async function testTransform() {
+  console.log('testTransform 함수 호출됨')
   if (store.state.mappings.length === 0) {
     alert('테스트할 매핑 정보가 없습니다.')
     return
@@ -212,21 +288,16 @@ const target = {
   background: white;
 }
 
-.footer {
-  position: fixed;
-  bottom: 15px;
-  left: 50%;
-  transform: translateX(-50%);
+.bottom-controls {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 15px;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 15px;
+  width: 100%;
 }
 
 .button-group {
@@ -295,33 +366,35 @@ const target = {
 }
 
 .server-section {
-  margin-top: 15px;
-  padding: 12px;
-  border: 1px solid #eee;
+  padding: 15px;
+  border: 1px solid #dee2e6;
   border-radius: 8px;
-  background: #f9f9f9;
+  background: white;
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
   text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .server-controls {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .server-btn {
   background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 18px;
+  padding: 10px 20px;
+  border-radius: 20px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+  margin: 0 5px;
 }
 
 .server-btn:hover {
@@ -349,20 +422,18 @@ const target = {
   background-color: #dc3545;
 }
 
-.debug-info {
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 10px;
+.mapping-info {
+  background: #e9ecef;
+  color: #495057;
+  padding: 10px 20px;
   border-radius: 8px;
-  font-size: 12px;
-  max-width: 400px;
-  word-break: break-all;
-  position: relative;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid #dee2e6;
 }
 
-
-
-.debug-info p {
-  margin: 5px 0;
+.mapping-info p {
+  margin: 0;
 }
 </style>

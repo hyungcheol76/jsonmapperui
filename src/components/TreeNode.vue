@@ -216,7 +216,7 @@ function onMouseUp(event) {
   border-radius: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  z-index: 10;
+  z-index: 1002; /* 펑션 아이콘보다 위에 표시 */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -231,7 +231,7 @@ function onMouseUp(event) {
   border-radius: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  z-index: 10;
+  z-index: 1002; /* 펑션 아이콘보다 위에 표시 */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 

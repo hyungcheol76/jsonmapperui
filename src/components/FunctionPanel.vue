@@ -81,6 +81,71 @@
         <span class="function-icon">F</span>
         펑션추가
       </div>
+      <div v-if="selectedFunction" class="context-menu-item" @click="openScriptEditor">
+        <span class="script-icon">📝</span>
+        스크립트 편집
+      </div>
+    </div>
+    
+    <!-- 스크립트 편집 모달 -->
+    <div v-if="scriptModalVisible" class="script-modal-overlay" @click="closeScriptModal">
+      <div class="script-modal" @click.stop>
+        <!-- 디버깅: 모달 상태 표시 -->
+        <div style="position: absolute; top: 5px; right: 40px; color: #666; font-size: 12px;">
+          모달 열림: {{ selectedFunction?.id }}
+        </div>
+        <div class="script-modal-header">
+          <h3>펑션 스크립트 편집</h3>
+          <button class="close-btn" @click="closeScriptModal">×</button>
+        </div>
+        <div class="script-modal-body">
+          <!-- 연결 정보 표시 -->
+          <div class="connection-info">
+            <div class="source-params">
+              <label>연결된 소스 파라미터:</label>
+              <div class="param-list">
+                <span v-for="param in sourceParams" :key="param" class="param-tag">
+                  {{ param }}
+                </span>
+                <span v-if="!sourceParams.length" class="no-params">연결된 소스가 없음</span>
+              </div>
+            </div>
+            <div class="target-params">
+              <label>연결된 타겟 파라미터:</label>
+              <div class="param-list">
+                <span v-for="param in targetParams" :key="param" class="param-tag">
+                  {{ param }}
+                </span>
+                <span v-if="!targetParams.length" class="no-params">연결된 타겟이 없음</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="script-section">
+            <label>JavaScript 코드:</label>
+            <textarea 
+              v-model="scriptCode" 
+              class="script-editor"
+              placeholder="// 파라미터:&#10;// - sourceValue: 소스에서 받은 값&#10;// - sourceParams: 연결된 소스 파라미터 객체 {employee.name: '값', ...}&#10;// - targetParams: 연결된 타겟 파라미터 객체 {user.name: '값', ...}&#10;//&#10;// 예시:&#10;return sourceValue.toUpperCase();&#10;&#10;// 또는 여러 소스 값 사용:&#10;// return sourceParams['employee.name'] + ' ' + sourceParams['employee.age'];&#10;&#10;// 또는 조건부 처리:&#10;// if (sourceValue.length > 10) {&#10;//   return sourceValue.substring(0, 10) + '...';&#10;// }&#10;// return sourceValue;"
+            ></textarea>
+          </div>
+          
+          <div class="preview-section">
+            <label>미리보기:</label>
+            <div class="preview-input">
+              <input v-model="previewInput" placeholder="테스트 입력값" />
+              <button @click="testScript">테스트</button>
+            </div>
+            <div class="preview-output">
+              <strong>결과:</strong> <span>{{ previewOutput }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="script-modal-footer">
+          <button @click="saveScript" class="save-btn">저장</button>
+          <button @click="closeScriptModal" class="cancel-btn">취소</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -119,6 +184,13 @@ const functions = ref([])
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
+const selectedFunction = ref(null)
+
+// 스크립트 편집 모달
+const scriptModalVisible = ref(false)
+const scriptCode = ref('')
+const previewInput = ref('')
+const previewOutput = ref('')
 
 // 드래그 상태(아이콘 이동)
 const isDragging = ref(false)
@@ -130,16 +202,35 @@ const isDraggingPreview = ref(false)
 const dragPreviewPath = ref('')
 const dragStartPoint = ref({ x: 0, y: 0 })
 
-// store에서 펑션 매핑만 필터링
+// store에서 펑션 매핑만 필터링 (매핑 정보 보존)
 const functionMappings = computed(() => {
   if (!state?.mappings) return []
-  return state.mappings.filter(m => m.type === 'function')
+  const mappings = state.mappings.filter(m => m.type === 'function')
+  console.log('functionMappings computed - 필터링된 매핑:', mappings)
+  return mappings
 })
 
-// store에서 F → 타겟 매핑만 필터링
+// store에서 F → 타겟 매핑만 필터링 (매핑 정보 보존)
 const functionToTargetMappings = computed(() => {
   if (!state?.mappings) return []
-  return state.mappings.filter(m => m.type === 'function-to-target')
+  const mappings = state.mappings.filter(m => m.type === 'function-to-target')
+  console.log('functionToTargetMappings computed - 필터링된 매핑:', mappings)
+  return mappings
+})
+
+// 선택된 펑션의 연결 정보
+const sourceParams = computed(() => {
+  if (!selectedFunction.value) return []
+  return functionMappings.value
+    .filter(m => m.functionId == selectedFunction.value.id)
+    .map(m => m.sourcePath)
+})
+
+const targetParams = computed(() => {
+  if (!selectedFunction.value) return []
+  return functionToTargetMappings.value
+    .filter(m => m.functionId == selectedFunction.value.id)
+    .map(m => m.targetPath)
 })
 
 /** 펑션 연결 제거 (필요 시 호출) */
@@ -300,21 +391,42 @@ async function onFunctionMouseUp(event, func) {
 }
 
 /** 모든 펑션 연결선 좌표 갱신 (소스→F + F→타겟) */
+let isUpdating = false // 무한 루프 방지 플래그
+
 function updateAllFunctionConnections() {
+  // 이미 업데이트 중이면 중복 실행 방지
+  if (isUpdating) {
+    console.log('업데이트 중 - 중복 실행 방지')
+    return
+  }
+  
+  isUpdating = true
   console.log('=== 모든 펑션 연결선 업데이트 시작 ===')
+  console.log('현재 매핑 상태:', state.mappings)
   
-  // 1. 소스 → F 연결선 업데이트
-  updateSourceToFunctionConnections()
-  
-  // 2. F → 타겟 연결선 업데이트
-  updateFunctionToTargetConnections()
-  
-  console.log('=== 모든 펑션 연결선 업데이트 완료 ===')
+  try {
+    // 1. 소스 → F 연결선 업데이트
+    updateSourceToFunctionConnections()
+    
+    // 2. F → 타겟 연결선 업데이트
+    updateFunctionToTargetConnections()
+    
+    console.log('=== 모든 펑션 연결선 업데이트 완료 ===')
+    console.log('업데이트 후 매핑 상태:', state.mappings)
+  } finally {
+    // 업데이트 완료 후 플래그 해제
+    setTimeout(() => {
+      isUpdating = false
+    }, 100) // 100ms 지연으로 연속 실행 방지
+  }
 }
 
 /** 소스 → F 연결선 좌표 갱신 */
 function updateSourceToFunctionConnections() {
   const mappings = functionMappings.value
+  console.log('updateSourceToFunctionConnections - 매핑 개수:', mappings?.length)
+  console.log('updateSourceToFunctionConnections - 매핑 내용:', mappings)
+  
   if (!mappings?.length) {
     console.log('소스 → F 매핑이 없어서 연결선 업데이트 생략')
     return
@@ -368,12 +480,19 @@ function updateSourceToFunctionConnections() {
         const c2x = sx + (ex - sx) * 0.65
         const c2y = ey
 
-        mapping.path = `M ${sx} ${sy} C ${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey}`
+        // 매핑 정보를 직접 수정하지 않고 복사본 사용
+        const updatedMapping = { ...mapping, path: `M ${sx} ${sy} C ${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey}` }
+        
+        // store에서 해당 매핑을 업데이트
+        const mappingIndex = state.mappings.findIndex(m => m.id === mapping.id)
+        if (mappingIndex !== -1) {
+          state.mappings[mappingIndex] = updatedMapping
+        }
         
         console.log(`소스 → F 매핑 ${index + 1}: 연결선 경로 생성 완료`, {
           sourcePath: mapping.sourcePath,
           calculated: { sx, sy, ex, ey, c1x, c1y, c2x, c2y },
-          path: mapping.path,
+          path: updatedMapping.path,
           srcPortCenter: { x: sxAbs, y: syAbs },
           panelRect: { left: panelRect.left, top: panelRect.top, width: panelRect.width, height: panelRect.height },
           sourceOutside: sxAbs < panelRect.left
@@ -473,13 +592,20 @@ function updateFunctionToTargetConnections() {
         const c2x = sx + (ex - sx) * 0.65
         const c2y = ey
 
-        mapping.path = `M ${sx} ${sy} C ${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey}`
+        // 매핑 정보를 직접 수정하지 않고 복사본 사용
+        const updatedMapping = { ...mapping, path: `M ${sx} ${sy} C ${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey}` }
+        
+        // store에서 해당 매핑을 업데이트
+        const mappingIndex = state.mappings.findIndex(m => m.id === mapping.id)
+        if (mappingIndex !== -1) {
+          state.mappings[mappingIndex] = updatedMapping
+        }
         
         console.log(`F → 타겟 매핑 ${index + 1}: 연결선 경로 생성 완료`, {
           functionId: mapping.functionId,
           targetPath: mapping.targetPath,
           calculated: { sx, sy, ex, ey, c1x, c1y, c2x, c2y },
-          path: mapping.path,
+          path: updatedMapping.path,
           fnPortCenter: { x: sxAbs, y: syAbs },
           targetPortCenter: { x: exAbs, y: eyAbs },
           panelRect: { left: panelRect.left, top: panelRect.top, width: panelRect.width, height: panelRect.height }
@@ -499,6 +625,16 @@ function updateFunctionToTargetConnections() {
 function showContextMenu(event) {
   event.preventDefault()
   event.stopPropagation()
+  
+  // 펑션 아이콘에서 우클릭한 경우 해당 펑션 선택
+  const functionItem = event.target.closest('.function-icon-item')
+  if (functionItem) {
+    const functionId = functionItem.getAttribute('data-function-id')
+    selectedFunction.value = functions.value.find(f => f.id == functionId)
+  } else {
+    selectedFunction.value = null
+  }
+  
   contextMenuX.value = event.clientX
   contextMenuY.value = event.clientY
   contextMenuVisible.value = true
@@ -508,6 +644,107 @@ function showContextMenu(event) {
 /** 컨텍스트 메뉴 숨김 */
 function hideContextMenu() {
   contextMenuVisible.value = false
+  selectedFunction.value = null // 선택된 펑션도 클리어
+}
+
+/** 스크립트 편집기 열기 */
+function openScriptEditor() {
+  if (!selectedFunction.value) return
+  
+  // 매핑에서 기존 스크립트 로드
+  const functionMappings = state.mappings?.filter(m => 
+    m.functionId == selectedFunction.value.id && m.type === 'function'
+  ) || []
+  
+  // 첫 번째 매핑에서 스크립트 가져오기 (모든 매핑이 동일한 스크립트를 가짐)
+  const existingScript = functionMappings[0]?.script || ''
+  scriptCode.value = existingScript
+  previewInput.value = ''
+  previewOutput.value = ''
+  
+  // 모달 열기 전에 전역 이벤트 리스너 일시 중단
+  document.removeEventListener('mousemove', onGlobalMouseMove)
+  document.removeEventListener('mouseup', onGlobalMouseUp)
+  
+  scriptModalVisible.value = true
+  contextMenuVisible.value = false
+  
+  console.log('스크립트 편집기 열림:', selectedFunction.value.id, '기존 스크립트:', existingScript)
+}
+
+/** 스크립트 테스트 */
+function testScript() {
+  if (!scriptCode.value.trim()) {
+    previewOutput.value = '스크립트를 입력해주세요.'
+    return
+  }
+  
+  try {
+    // 개선된 함수 실행 - 여러 파라미터 지원
+    const testFunction = new Function('sourceValue', 'sourceParams', 'targetParams', scriptCode.value)
+    
+    // 테스트용 파라미터 객체 생성 (더 현실적인 데이터)
+const testSourceParams = sourceParams.value.reduce((obj, param) => {
+  const fieldName = param.split('.').pop();
+  // 필드 타입에 따른 테스트 데이터 생성
+  if (fieldName.includes('name') || fieldName.includes('Name')) {
+    obj[param] = 'John Doe';
+  } else if (fieldName.includes('age')) {
+    obj[param] = '30';
+  } else if (fieldName.includes('email')) {
+    obj[param] = 'john@example.com';
+  } else if (fieldName.includes('department')) {
+    obj[param] = 'IT';
+  } else {
+    obj[param] = `테스트_${fieldName}`;
+  }
+  return obj
+}, {})
+
+const testTargetParams = targetParams.value.reduce((obj, param) => {
+  const fieldName = param.split('.').pop();
+  obj[param] = `타겟_${fieldName}`;
+  return obj
+}, {})
+    
+    const result = testFunction(previewInput.value, testSourceParams, testTargetParams)
+    previewOutput.value = String(result)
+  } catch (error) {
+    previewOutput.value = `오류: ${error.message}`
+  }
+}
+
+/** 스크립트 저장 */
+function saveScript() {
+  if (!selectedFunction.value) return
+  
+  // store의 액션을 사용하여 스크립트 저장
+  if (actions?.updateFunctionScript) {
+    actions.updateFunctionScript(selectedFunction.value.id, scriptCode.value)
+    console.log('스크립트 저장됨 (store):', selectedFunction.value.id, scriptCode.value)
+  } else {
+    console.log('❌ updateFunctionScript 액션이 없음')
+  }
+  
+  scriptModalVisible.value = false
+}
+
+/** 스크립트 모달 닫기 */
+function closeScriptModal() {
+  scriptModalVisible.value = false
+  selectedFunction.value = null
+  
+  // 모달 닫힐 때 전역 클릭 이벤트 리스너 정리
+  document.removeEventListener('click', hideContextMenu)
+  
+  // 컨텍스트 메뉴도 함께 숨김
+  contextMenuVisible.value = false
+  
+  // 전역 이벤트 리스너 복원
+  document.addEventListener('mousemove', onGlobalMouseMove)
+  document.addEventListener('mouseup', onGlobalMouseUp)
+  
+  console.log('스크립트 편집기 닫힘')
 }
 
 /** 아이콘 드래그 시작(이동) */
@@ -615,22 +852,9 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', onGlobalMouseUp)
 })
 
-/** 변경 감지: 매핑/아이콘 변동 시 선 갱신 */
-watch(functionMappings, async () => {
-  await nextTick()
-  requestAnimationFrame(() => {
-    console.log('펑션 매핑 변경 감지 후 연결선 업데이트 실행')
-    updateAllFunctionConnections()
-  })
-}, { deep: true })
-
-watch(functions, async () => {
-  await nextTick()
-  requestAnimationFrame(() => {
-    console.log('펑션 아이콘 변경 감지 후 연결선 업데이트 실행')
-    updateAllFunctionConnections()
-  })
-}, { deep: true })
+/** 자동 업데이트 제거 - 무한 루프 방지 */
+// watch 함수들을 제거하여 무한 루프 방지
+// 필요한 경우 수동으로 updateAllFunctionConnections() 호출
 
 // 외부에서 호출할 수 있도록 함수들을 노출
 defineExpose({
@@ -645,8 +869,8 @@ defineExpose({
 .function-panel {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  z-index: 2;
+  pointer-events: none !important; /* 강제로 이벤트 비활성화 */
+  z-index: 50; /* 서버 섹션보다 낮게 설정 */
 }
 
 /* ✅ 선은 패널 전체를 덮게 */
@@ -693,7 +917,7 @@ defineExpose({
 
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease;
-  z-index: 2;
+  z-index: 1000; /* 마커보다 위에 표시 */
   pointer-events: auto; /* ✅ 아이콘 자체도 타겟 가능 */
   
   /* 연결점 표시 */
@@ -738,7 +962,7 @@ defineExpose({
 .function-icon-item.dragging {
   opacity: 0.8;
   transform: scale(1.2);
-  z-index: 1000;
+  z-index: 1001; /* 드래그 중일 때는 더 위에 표시 */
 }
 
 /* 드래그 미리보기 선 스타일 (소스 엘리먼트와 동일) */
@@ -746,6 +970,240 @@ defineExpose({
   cursor: crosshair;
   pointer-events: none;
   transition: none; /* 드래그 중 부드러운 업데이트를 위해 transition 제거 */
+}
+
+/* 스크립트 편집 모달 스타일 */
+.script-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999999; /* 연결선보다 위에 표시 */
+  pointer-events: auto;
+}
+
+.script-modal {
+  background: #2d2d2d;
+  border-radius: 12px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  position: relative;
+  z-index: 10000000; /* 연결선보다 위에 표시 */
+}
+
+.script-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #444;
+  background: #333;
+}
+
+.script-modal-header h3 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 1.2rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #444;
+  color: #e0e0e0;
+}
+
+.script-modal-body {
+  padding: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.script-section {
+  margin-bottom: 1.5rem;
+}
+
+.script-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.script-editor {
+  width: 100%;
+  height: 200px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #e0e0e0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.script-editor:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.preview-section {
+  margin-bottom: 1rem;
+}
+
+.preview-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.preview-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.preview-input input {
+  flex: 1;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 0.5rem;
+  color: #e0e0e0;
+}
+
+.preview-input button {
+  background: #8b5cf6;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.preview-input button:hover {
+  background: #7c3aed;
+}
+
+.preview-output {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 0.75rem;
+  color: #e0e0e0;
+}
+
+.script-modal-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #444;
+  background: #333;
+}
+
+.save-btn {
+  background: #28a745;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+}
+
+/* 연결 정보 스타일 */
+.connection-info {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.source-params, .target-params {
+  margin-bottom: 1rem;
+}
+
+.source-params:last-child, .target-params:last-child {
+  margin-bottom: 0;
+}
+
+.source-params label, .target-params label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e0e0e0;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.param-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.param-tag {
+  background: #8b5cf6;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+.no-params {
+  color: #666;
+  font-style: italic;
+  font-size: 0.8rem;
 }
 
 .context-menu {

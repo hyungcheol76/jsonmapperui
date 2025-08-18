@@ -3,12 +3,30 @@
     {
       "from": "employee.age",
       "to": "user.info.age",
-      "op": "copy"
+      "op": "copy",
+      "type": "direct"
+    },
+    {
+      "from": "employee.city",
+      "to": "function:1755498274768",
+      "op": "copy",
+      "type": "function-input",
+      "functionId": 1755498274768
     },
     {
       "from": "employee.name",
+      "to": "function:1755498274768",
+      "op": "copy",
+      "type": "function-input",
+      "functionId": 1755498274768
+    },
+    {
+      "from": "function:1755498274768",
       "to": "user.name",
-      "op": "copy"
+      "op": "function",
+      "type": "function-output",
+      "functionId": 1755498274768,
+      "script": "return sourceParams['employee.city'] + ' ' + sourceParams['employee.name'] + ' is my friend2';"
     }
   ]
 }

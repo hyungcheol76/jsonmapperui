@@ -107,7 +107,8 @@ export const createStore = () => {
           id: `func_${sourcePath}__${functionId}`, 
           type: 'function',
           sourcePath, 
-          functionId 
+          functionId,
+          script: '' // 기본 스크립트 초기화
         }
         console.log('새로운 펑션 연결 생성:', newMapping)
         state.mappings.push(newMapping)
@@ -165,6 +166,20 @@ export const createStore = () => {
       console.log('=== selectNode 호출 ===', path)
       state.selectedNode = path
       console.log('selectedNode 설정 완료:', state.selectedNode)
+    },
+
+    // 펑션 스크립트 업데이트
+    updateFunctionScript(functionId, script) {
+      console.log('=== updateFunctionScript 호출 ===')
+      console.log('펑션 ID:', functionId, '스크립트:', script)
+      
+      // 해당 펑션의 모든 매핑에서 스크립트 업데이트
+      state.mappings.forEach(mapping => {
+        if (mapping.functionId == functionId) {
+          mapping.script = script
+          console.log('스크립트 업데이트됨:', mapping.id, script)
+        }
+      })
     }
   }
 

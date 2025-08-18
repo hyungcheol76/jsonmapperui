@@ -126,10 +126,84 @@ function passWhen(src, rule) {
   return ok;
 }
 
-function applyOp(op, args, sourceValue) {
+// 연결된 소스 파라미터 수집
+function collectSourceParams(src, entry, allMappings) {
+  const params = {};
+  if (entry.functionId) {
+    console.log('[server] collectSourceParams - functionId:', entry.functionId);
+    console.log('[server] collectSourceParams - allMappings:', allMappings);
+    
+    // 같은 functionId를 가진 function-input 타입 매핑에서 소스 파라미터 수집
+    allMappings.forEach(mapping => {
+      console.log('[server] 매핑 검사:', mapping);
+      
+      // functionId가 같고, type이 'function-input'인 매핑에서 실제 소스 경로 수집
+      if (mapping.functionId === entry.functionId && 
+          mapping.type === 'function-input' &&
+          mapping.from && 
+          !mapping.from.startsWith('function:')) {
+        
+        console.log('[server] 소스 파라미터 발견:', mapping.from);
+        params[mapping.from] = deepGet(src, mapping.from);
+        console.log('[server] 소스 값:', deepGet(src, mapping.from));
+      } else {
+        console.log('[server] 매핑 조건 불일치:', {
+          functionIdMatch: mapping.functionId === entry.functionId,
+          typeMatch: mapping.type === 'function-input',
+          hasFrom: !!mapping.from,
+          notFunctionFrom: !mapping.from?.startsWith('function:')
+        });
+      }
+    });
+  } else {
+    console.log('[server] entry에 functionId가 없음:', entry);
+  }
+  console.log('[server] 최종 sourceParams:', params);
+  return params;
+}
+
+// 연결된 타겟 파라미터 수집
+function collectTargetParams(out, entry) {
+  const params = {};
+  if (entry.functionId) {
+    // 같은 functionId를 가진 다른 매핑에서 타겟 파라미터 수집
+    // 실제 구현에서는 매핑 스펙에서 관련 매핑들을 찾아야 함
+    // 여기서는 간단히 현재 entry의 to 값만 사용
+    if (entry.to) {
+      params[entry.to] = deepGet(out, entry.to);
+    }
+  }
+  return params;
+}
+
+function applyOp(op, args, sourceValue, sourceParams = {}, targetParams = {}) {
+  console.log('[server] applyOp 호출:', { op, args, sourceValue, sourceParams, targetParams });
+  
   switch (op || 'copy') {
     case 'copy':    return sourceValue;
     case 'const':   return args;
+    case 'function': {
+      // 함수 실행 (스크립트 기반)
+      console.log('[server] function case 진입, args:', args);
+      if (args && args.script) {
+        try {
+          console.log('[server] 펑션 스크립트 실행:', args.script);
+          console.log('[server] 펑션 입력값:', { sourceValue, sourceParams, targetParams });
+          
+          const scriptFunction = new Function('sourceValue', 'sourceParams', 'targetParams', args.script);
+          const result = scriptFunction(sourceValue, sourceParams, targetParams);
+          
+          console.log('[server] 펑션 실행 결과:', result);
+          return result;
+        } catch (error) {
+          console.error('[server] 함수 실행 오류:', error);
+          return sourceValue; // 오류 시 원본 값 반환
+        }
+      } else {
+        console.log('[server] 스크립트가 없거나 args가 없음:', { hasArgs: !!args, hasScript: !!(args && args.script) });
+      }
+      return sourceValue;
+    }
     case 'number':  {
       const n = Number(sourceValue);
       return Number.isNaN(n) ? null : n;
@@ -146,7 +220,7 @@ function applyOp(op, args, sourceValue) {
 }
 
 // 배열 와일드카드: from: "items[*].id" → to: "lines[*].sku"
-function applyEntry(out, entry, src) {
+function applyEntry(out, entry, src, allMappings) {
   if (!passWhen(src, entry.when)) return;
 
   const hasFromWild = entry.from?.includes('[*]');
@@ -173,8 +247,64 @@ function applyEntry(out, entry, src) {
   }
 
   const raw = entry.from ? deepGet(src, entry.from) : undefined;
-  const val = applyOp(entry.op, entry.args, raw);
-  deepSet(out, entry.to, val);
+  
+  // 함수 실행 시 파라미터 객체 생성
+  let sourceParams = {};
+  let targetParams = {};
+  
+  if (entry.op === 'function') {
+    // 연결된 소스/타겟 파라미터 수집 (전체 매핑 정보 전달)
+    sourceParams = collectSourceParams(src, entry, allMappings);
+    targetParams = collectTargetParams(out, entry);
+    
+    console.log('[server] 펑션 실행 - sourceParams:', sourceParams);
+    console.log('[server] 펑션 실행 - targetParams:', targetParams);
+    
+    // function-input 타입 매핑의 경우 실제 값을 sourceParams에 추가
+    if (entry.type === 'function-input' && entry.from && !entry.from.startsWith('function:')) {
+      sourceParams[entry.from] = raw;
+      console.log('[server] function-input 타입 매핑에서 소스 값 추가:', entry.from, raw);
+    }
+    
+    // function-output 타입의 경우, 모든 function-input 매핑에서 소스 파라미터 수집
+    if (entry.type === 'function-output' && entry.functionId) {
+      console.log('[server] function-output에서 소스 파라미터 수집 시작');
+      allMappings.forEach(mapping => {
+        if (mapping.type === 'function-input' && 
+            mapping.functionId === entry.functionId &&
+            mapping.from && 
+            !mapping.from.startsWith('function:')) {
+          
+          const value = deepGet(src, mapping.from);
+          sourceParams[mapping.from] = value;
+          console.log('[server] function-output에서 소스 파라미터 추가:', mapping.from, value);
+        }
+      });
+    }
+  }
+  
+  // function 타입의 경우 script를 args에 포함
+  let args = entry.args || {};
+  if (entry.op === 'function' && entry.script) {
+    args = { ...args, script: entry.script };
+  }
+  
+  const val = applyOp(entry.op, args, raw, sourceParams, targetParams);
+  
+  // function-output 타입의 경우, 함수 실행 결과를 targetPath에만 매핑
+  if (entry.type === 'function-output' && entry.to) {
+    console.log('[server] function-output 결과를 targetPath에 매핑:', entry.to, val);
+    deepSet(out, entry.to, val);
+  } else if (entry.type === 'function-input') {
+    // function-input 타입은 중간 단계이므로 결과에 포함하지 않음
+    console.log('[server] function-input 타입 무시 (중간 단계):', entry.from, '->', entry.to);
+  } else if (entry.to) {
+    // 일반 매핑의 경우
+    deepSet(out, entry.to, val);
+  } else if (entry.op === 'function' && entry.from && entry.from.startsWith('function:')) {
+    // function 타입이지만 targetPath가 없는 경우 (디버그용) - 아무것도 하지 않음
+    console.log('[server] function 타입 디버그 매핑 무시:', entry.from);
+  }
 }
 
 function transform(type, payload) {
@@ -191,7 +321,7 @@ function transform(type, payload) {
   const out = {};
   for (const entry of spec.mappings) {
     console.log(`[server] 매핑 엔트리 처리:`, entry);
-    applyEntry(out, entry, payload);
+    applyEntry(out, entry, payload, spec.mappings);
   }
   
   console.log(`[server] 변환 완료, 결과:`, out);
