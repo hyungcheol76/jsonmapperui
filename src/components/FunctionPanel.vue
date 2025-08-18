@@ -7,6 +7,10 @@
                 refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
           <polygon points="0 0,10 3.5,0 7" fill="#4a90e2" />
         </marker>
+        <!-- 소스 엘리먼트와 동일한 원형 점 마커 -->
+        <marker id="dot-endpoint" markerWidth="10" markerHeight="10" refX="5" refY="5">
+          <circle cx="5" cy="5" r="3" fill="#666666" stroke="#444444" stroke-width="1" />
+        </marker>
       </defs>
       <g class="function-connections-group">
         <path
@@ -38,11 +42,11 @@
         <path
           :d="dragPreviewPath"
           class="drag-preview-line"
-          stroke="#ff6b6b"
+          stroke="#666666"
           stroke-width="2"
           fill="none"
-          stroke-dasharray="5,5"
-          marker-end="url(#func-arrow)"
+          marker-start="url(#dot-endpoint)"
+          marker-end="url(#dot-endpoint)"
         />
       </g>
     </svg>
@@ -179,18 +183,20 @@ function updateDragPreview(currentX, currentY) {
     y: currentY - panelRect.top
   }
   
-  // 베지어 곡선으로 자연스러운 연결선 생성
+  // 소스 엘리먼트와 동일한 베지어 곡선으로 자연스러운 연결선 생성
   const startX = dragStartPoint.value.x
   const startY = dragStartPoint.value.y
   const endX = currentPoint.x
   const endY = currentPoint.y
   
-  const c1x = startX + (endX - startX) * 0.35
-  const c1y = startY
-  const c2x = startX + (endX - startX) * 0.65
-  const c2y = endY
+  // 소스 엘리먼트와 동일한 부드러운 곡선 (curviness 50과 유사)
+  const distance = Math.abs(endX - startX)
+  const curveOffset = distance * 0.25 // 곡률 조정
   
-  dragPreviewPath.value = `M ${startX} ${startY} C ${c1x} ${c1y} ${c2x} ${c2y} ${endX} ${endY}`
+  const controlX = (startX + endX) / 2
+  const controlY = startY + curveOffset
+  
+  dragPreviewPath.value = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`
 }
 
 /** 드래그 미리보기 선 종료 */
@@ -354,7 +360,7 @@ function updateSourceToFunctionConnections() {
         const sx = sxAbs - panelRect.left
         const sy = syAbs - panelRect.top
         const ex = exAbs - panelRect.left
-        const ey = exAbs - panelRect.top
+        const ey = eyAbs - panelRect.top
 
         // Cubic Bézier로 자연스러운 곡률
         const c1x = sx + (ex - sx) * 0.35
@@ -459,7 +465,7 @@ function updateFunctionToTargetConnections() {
         const sx = sxAbs - panelRect.left
         const sy = syAbs - panelRect.top
         const ex = exAbs - panelRect.left
-        const ey = exAbs - panelRect.top
+        const ey = eyAbs - panelRect.top
 
         // Cubic Bézier로 자연스러운 곡률
         const c1x = sx + (ex - sx) * 0.35
@@ -733,6 +739,13 @@ defineExpose({
   opacity: 0.8;
   transform: scale(1.2);
   z-index: 1000;
+}
+
+/* 드래그 미리보기 선 스타일 (소스 엘리먼트와 동일) */
+.drag-preview-line {
+  cursor: crosshair;
+  pointer-events: none;
+  transition: none; /* 드래그 중 부드러운 업데이트를 위해 transition 제거 */
 }
 
 .context-menu {
