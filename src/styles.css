@@ -60,6 +60,19 @@ body {
   stroke-width: 3;
 }
 
+/* jsPlumb 드래그 미리보기 선 강제 숨김 */
+.jtk-connector.jtk-dragging {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.jtk-connector.jtk-drag-hover {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 /* ========================================
    일반 레이아웃 스타일 (UI 관련)
    ======================================== */

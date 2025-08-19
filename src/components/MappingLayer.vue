@@ -63,14 +63,31 @@ function initJsPlumb() {
     endpointStyle: { fill: '#4a90e2', stroke: '#357abd' },
     anchor: ['Left', 'Right'],
     maxConnections: -1,
+    // 드래그 미리보기 선 완전히 투명하게 설정
+    dragOptions: { 
+      cursor: 'grab',
+      paintStyle: { stroke: 'transparent', strokeWidth: 0 },
+      hoverPaintStyle: { stroke: 'transparent', strokeWidth: 0 },
+      opacity: 0,
+      zIndex: 0
+    }
   })
 
-  // 드래그 디버그
+  // jsPlumb 드래그 이벤트 완전 차단
   jsPlumbInstance.bind('connectionDrag', (info) => {
-    console.log('[plumb] drag from:', info?.source?.getAttribute?.('data-path'))
+    // jsPlumb 드래그 미리보기 선 완전 차단
+    if (info.connection) {
+      info.connection.setVisible(false)
+    }
+    return false
   })
+
   jsPlumbInstance.bind('connectionAborted', (info) => {
-    console.log('[plumb] drag aborted', info)
+    // 드래그 중단 시 jsPlumb 미리보기 선 완전 제거
+    if (info.connection) {
+      info.connection.setVisible(false)
+    }
+    return false
   })
 
   // ✅ 드랍 직전: 여기서 Store에 기록하고 기본 연결은 만들지 않음
@@ -125,13 +142,20 @@ function wireNodes() {
       const anchorEl = node
 
       if (side === 'src') {
+        // 다이렉트 선 연결을 위해 makeSource 복원, 하지만 드래그 미리보기 선은 완전히 비활성화
         jsPlumbInstance.makeSource(anchorEl, {
           anchor: [1, 0.5, -8, 0],
           maxConnections: -1,
           endpoint: ['Dot', { radius: 5 }],
           parameters: { path, side: 'src' },
-          // 시각적 피드백
-          dragOptions: { cursor: 'grab' },
+          // 드래그 미리보기 선 완전히 투명하게 설정
+          dragOptions: { 
+            cursor: 'grab',
+            paintStyle: { stroke: 'transparent', strokeWidth: 0 },
+            hoverPaintStyle: { stroke: 'transparent', strokeWidth: 0 },
+            opacity: 0,
+            zIndex: 0
+          }
         })
       } else if (side === 'dst') {
         jsPlumbInstance.makeTarget(anchorEl, {
@@ -287,6 +311,13 @@ onBeforeUnmount(() => {
 /* jsPlumb 연결선 및 엔드포인트 z-index */
 :deep(.jtk-connector) { z-index: 1000; }
 :deep(.jtk-endpoint) { z-index: 1001; }
+
+/* jsPlumb 드래그 미리보기 선 숨기기 */
+:deep(.jtk-connector.jtk-dragging) { 
+  display: none !important; 
+  opacity: 0 !important; 
+  visibility: hidden !important; 
+}
 
 /* jsPlumb 엔드포인트 스타일 */
 :deep(.jtk-endpoint.jtk-endpoint-anchor) {

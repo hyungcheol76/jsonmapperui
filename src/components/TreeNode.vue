@@ -87,6 +87,12 @@ function onMouseDown(event) {
   if (props.side === 'src') {
     console.log('소스 엘리먼트에서 드래그 시작')
     store.actions.setCustomDragSource(props.path)
+    
+    // FunctionPanel에서 드래그 미리보기 선 시작
+    const functionPanel = document.querySelector('.function-panel')
+    if (functionPanel && functionPanel.__vueParentComponent?.exposed?.startDragPreview) {
+      functionPanel.__vueParentComponent.exposed.startDragPreview(props.path, event.clientX, event.clientY)
+    }
   }
   // 타겟에서의 드래그 (새로운 로직)
   else if (props.side === 'dst') {
@@ -143,6 +149,8 @@ function onMouseUp(event) {
   if (!isDragging.value) return
   
   console.log('=== TreeNode 커스텀 드래그 종료 ===', props.path)
+  
+
   
   // 타겟에서 드래그 종료 시 시각적 피드백 복원
   if (props.side === 'dst') {
