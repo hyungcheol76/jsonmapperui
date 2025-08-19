@@ -18,19 +18,7 @@
           <circle cx="5" cy="5" r="3" fill="#666666" stroke="#444444" stroke-width="1" />
         </marker>
       </defs>
-      <g class="function-connections-group">
-        <path
-          v-for="m in functionMappings"
-          :key="m.id"
-          :d="m.path"
-          class="function-connection-line"
-          stroke="#4a90e2" stroke-width="2" fill="none"
-          marker-end="url(#func-arrow)"
-          @click="removeFunctionConnection(m.id)"
-        />
-      </g>
-      
-      <!-- F → 타겟 연결선 그룹 -->
+      <!-- F → 타겟 연결선 그룹 (먼저 렌더링) -->
       <g class="function-to-target-group">
         <path
           v-for="m in functionToTargetMappings"
@@ -43,7 +31,19 @@
         />
       </g>
       
-      <!-- 드래그 미리보기 선 -->
+      <g class="function-connections-group">
+        <path
+          v-for="m in functionMappings"
+          :key="m.id"
+          :d="m.path"
+          class="function-connection-line"
+          stroke="#4a90e2" stroke-width="2" fill="none"
+          marker-end="url(#func-arrow)"
+          @click="removeFunctionConnection(m.id)"
+        />
+      </g>
+      
+      <!-- 드래그 미리보기 선 (마지막에 렌더링하여 최상위에 표시) -->
       <g class="drag-preview-group" v-if="isDraggingPreview">
         <path
           :d="dragPreviewPath"
@@ -76,22 +76,24 @@
       </div>
     </div>
 
-    <!-- 컨텍스트 메뉴 -->
-    <div
-      v-if="contextMenuVisible"
-      class="context-menu"
-      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
-      @click.stop
-    >
-      <div class="context-menu-item" @click="addFunction">
-        <span class="function-icon">F</span>
-        펑션추가
-      </div>
-      <div v-if="selectedFunction" class="context-menu-item" @click="openScriptEditor">
-        <span class="script-icon">📝</span>
-        스크립트 편집
-      </div>
+      <!-- 컨텍스트 메뉴 -->
+  <div
+    v-if="contextMenuVisible"
+    class="context-menu"
+    :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    @click.stop
+  >
+    <div class="context-menu-item" @click="addFunction">
+      <span class="function-icon">F</span>
+      펑션추가
     </div>
+    <div v-if="selectedFunction" class="context-menu-item" @click="openScriptEditor">
+      <span class="script-icon">📝</span>
+      스크립트 편집
+    </div>
+  </div>
+  
+
     
     <!-- 스크립트 편집 모달 -->
     <div v-if="scriptModalVisible" class="script-modal-overlay" @click="closeScriptModal">
@@ -965,7 +967,7 @@ defineExpose({
   height: 100%;
   pointer-events: none !important;
   overflow: visible; /* 음수 좌표 허용 */
-  z-index: 1;
+  z-index: 99999; /* 더 높은 z-index로 설정 */
 }
 
 /* 아이콘 컨테이너: 실제 드롭 타겟 */

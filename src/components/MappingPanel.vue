@@ -240,7 +240,7 @@ function addFunction() {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   padding: 8px 0;
-  z-index: 9999;
+  z-index: 999;
   min-width: 150px;
   pointer-events: auto;
 }

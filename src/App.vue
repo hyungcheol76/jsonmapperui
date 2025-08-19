@@ -1,8 +1,31 @@
 <template>
   <div class="layout plumb-root">
     <div class="pane">
-      <h2>소스 JSON</h2>
-      <JsonTree side="src" :data="source" path="" />
+      <div class="pane-header">
+        <h2>소스 JSON</h2>
+        <div class="file-controls">
+          <input 
+            type="file" 
+            ref="sourceFileInput" 
+            @change="loadSourceFile" 
+            accept=".json"
+            style="display: none;"
+          />
+          <button class="file-btn" @click="$refs.sourceFileInput.click()">
+            파일 선택
+          </button>
+          <button class="file-btn" @click="loadSampleSource">
+            샘플 로드
+          </button>
+        </div>
+      </div>
+      <div class="tree-container" :class="{ 'loading': sourceLoading }">
+        <div v-if="sourceLoading" class="loading-overlay">
+          <div class="loading-spinner"></div>
+          <p>파일 로딩 중...</p>
+        </div>
+        <JsonTree side="src" :data="source" path="" />
+      </div>
     </div>
     
     <div class="center-panel">
@@ -13,8 +36,31 @@
     <MappingLayer />
     
     <div class="pane">
-      <h2>타겟 JSON</h2>
-      <JsonTree side="dst" :data="target" path="" />
+      <div class="pane-header">
+        <h2>타겟 JSON</h2>
+        <div class="file-controls">
+          <input 
+            type="file" 
+            ref="targetFileInput" 
+            @change="loadTargetFile" 
+            accept=".json"
+            style="display: none;"
+          />
+          <button class="file-btn" @click="$refs.targetFileInput.click()">
+            파일 선택
+          </button>
+          <button class="file-btn" @click="loadSampleTarget">
+            샘플 로드
+          </button>
+        </div>
+      </div>
+      <div class="tree-container" :class="{ 'loading': targetLoading }">
+        <div v-if="targetLoading" class="loading-overlay">
+          <div class="loading-spinner"></div>
+          <p>파일 로딩 중...</p>
+        </div>
+        <JsonTree side="dst" :data="target" path="" />
+      </div>
     </div>
   </div>
   
@@ -55,6 +101,7 @@ import { exportMappings, exportMappingsAsCSV, exportMappingsAsSQL } from './util
 import { testServerConnection, uploadMappingFile, transformData } from './utils/server-api.js'
 
 const store = inject('store')
+const actions = store.actions
 
 // 서버 상태 관리
 const serverStatus = ref('disconnected')
@@ -68,6 +115,111 @@ watch(() => store.state.mappings, (newMappings) => {
   console.log('새로운 매핑 배열:', newMappings)
   console.log('매핑 개수:', newMappings.length)
 }, { deep: true })
+
+// 파일 로딩 함수들
+async function loadSourceFile(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  sourceLoading.value = true
+  sourceFileName.value = file.name
+  
+  try {
+    const text = await file.text()
+    const jsonData = JSON.parse(text)
+    source.value = jsonData
+    console.log('소스 파일 로드 완료:', jsonData)
+  } catch (error) {
+    console.error('소스 파일 로드 오류:', error)
+    alert('소스 JSON 파일을 읽는 중 오류가 발생했습니다.')
+    sourceFileName.value = ''
+  } finally {
+    sourceLoading.value = false
+    // 파일 입력 초기화
+    event.target.value = ''
+  }
+}
+
+async function loadSampleSource() {
+  sourceLoading.value = true
+  sourceFileName.value = 'sample-source.json'
+  
+  try {
+    const response = await fetch('/sample-source.json')
+    const jsonData = await response.json()
+    source.value = jsonData
+    console.log('샘플 소스 데이터 로드 완료:', jsonData)
+  } catch (error) {
+    console.error('샘플 소스 파일 로드 오류:', error)
+    // 폴백: 기본 데이터 사용
+    source.value = {
+      employee: {
+        age: 'string',
+        city: 'string',
+        name: 'string',
+        fullInfo: 'string',
+      }
+    }
+    sourceFileName.value = ''
+  } finally {
+    sourceLoading.value = false
+  }
+}
+
+// 타겟 파일 로딩 함수들
+async function loadTargetFile(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  targetLoading.value = true
+  targetFileName.value = file.name
+  
+  try {
+    const text = await file.text()
+    const jsonData = JSON.parse(text)
+    target.value = jsonData
+    console.log('타겟 파일 로드 완료:', jsonData)
+  } catch (error) {
+    console.error('타겟 파일 로드 오류:', error)
+    alert('타겟 JSON 파일을 읽는 중 오류가 발생했습니다.')
+    targetFileName.value = ''
+  } finally {
+    targetLoading.value = false
+    // 파일 입력 초기화
+    event.target.value = ''
+  }
+}
+
+async function loadSampleTarget() {
+  targetLoading.value = true
+  targetFileName.value = 'sample-target.json'
+  
+  try {
+    const response = await fetch('/sample-target.json')
+    const jsonData = await response.json()
+    target.value = jsonData
+    console.log('샘플 타겟 데이터 로드 완료:', jsonData)
+  } catch (error) {
+    console.error('샘플 타겟 파일 로드 오류:', error)
+    // 폴백: 기본 데이터 사용
+    target.value = {
+      user: {
+        info: {
+          age: 'string',
+          cityaddress: 'string',
+        },
+        name: 'string',
+        firstName: 'string',
+        lastName: 'string',
+        age: 'string',
+        city: 'string'
+      }
+    }
+    targetFileName.value = ''
+  } finally {
+    targetLoading.value = false
+  }
+}
 
 // store 상태 로깅
 console.log('=== App.vue 초기화 ===')
@@ -246,16 +398,24 @@ onMounted(async () => {
   await testConnection()
 })
 
-const source = {
+// 파일 로딩 상태 관리
+const sourceLoading = ref(false)
+const sourceFileName = ref('')
+const targetLoading = ref(false)
+const targetFileName = ref('')
+
+// 소스 데이터 (반응형으로 변경)
+const source = ref({
   employee: {
     age: 'string',
     city: 'string',
     name: 'string',
     fullInfo: 'string', // 1:N 매핑 테스트용 필드 추가
   }
-}
+})
 
-const target = {
+// 타겟 데이터 (반응형으로 변경)
+const target = ref({
   user: {
     info: {
       age: 'string',
@@ -267,7 +427,9 @@ const target = {
     age: 'string',       // 1:N 매핑 테스트용 필드 추가
     city: 'string'       // 1:N 매핑 테스트용 필드 추가
   }
-}
+})
+
+
 </script>
 
 <style scoped>
@@ -284,6 +446,100 @@ const target = {
   border-radius: 8px;
   padding: 20px;
   background: white;
+  position: relative;
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.pane-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.file-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.file-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  font-size: 11px;
+  min-width: 60px;
+}
+
+.file-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+}
+
+.file-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.tree-container {
+  height: calc(100% - 50px);
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f8f9fa;
+  padding: 10px;
+}
+
+.tree-container.loading {
+  pointer-events: none;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 50px;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 8px;
+  backdrop-filter: blur(2px);
+}
+
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #4f46e5;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-overlay p {
+  color: #343a40;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  text-align: center;
 }
 
 .center-panel {
