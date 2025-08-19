@@ -3,9 +3,15 @@
     <!-- ✅ 선을 패널 전체를 덮는 오버레이에서 그립니다 -->
     <svg class="function-lines-overlay" aria-hidden="true">
       <defs>
-        <marker id="func-arrow" markerWidth="10" markerHeight="7"
-                refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
-          <polygon points="0 0,10 3.5,0 7" fill="#4a90e2" />
+        <!-- 소스->F 연결선용 파란색 화살표 -->
+        <marker id="func-arrow" markerWidth="8" markerHeight="6"
+                refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <polygon points="0 0,8 3,0 6" fill="#4a90e2" />
+        </marker>
+        <!-- F->타겟 연결선용 붉은색 화살표 -->
+        <marker id="func-arrow-red" markerWidth="8" markerHeight="6"
+                refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <polygon points="0 0,8 3,0 6" fill="#dc3545" />
         </marker>
         <!-- 소스 엘리먼트와 동일한 원형 점 마커 -->
         <marker id="dot-endpoint" markerWidth="10" markerHeight="10" refX="5" refY="5">
@@ -31,8 +37,8 @@
           :key="m.id"
           :d="m.path"
           class="function-to-target-line"
-          stroke="#28a745" stroke-width="2" fill="none"
-          marker-end="url(#func-arrow)"
+          stroke="#dc3545" stroke-width="2" fill="none"
+          marker-end="url(#func-arrow-red)"
           @click="removeFunctionConnection(m.id)"
         />
       </g>
@@ -1026,7 +1032,7 @@ defineExpose({
   width: 8px;
   height: 8px;
   transform: translateY(-50%);
-  background: #28a745;
+  background: #dc3545;
   border: 2px solid #fff;
   border-radius: 50%;
   pointer-events: none;
@@ -1352,10 +1358,11 @@ defineExpose({
   vector-effect: non-scaling-stroke;
   stroke-dasharray: 3 3;
   cursor: pointer;
-  transition: stroke-width 0.2s ease;
+  transition: stroke-width 0.2s ease, stroke 0.2s ease;
 }
 
 .function-to-target-line:hover {
   stroke-dasharray: none;
+  stroke: #ff6b6b; /* 호버 시 더 밝은 붉은색 */
 }
 </style>

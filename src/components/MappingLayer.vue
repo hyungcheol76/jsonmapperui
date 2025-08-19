@@ -2,8 +2,8 @@
   <div class="mapping-layer" ref="mappingLayer">
     <svg class="connections-svg" style="pointer-events: none;">
       <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#4a90e2" />
+        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4a90e2" />
         </marker>
       </defs>
       <g class="connections-group">
