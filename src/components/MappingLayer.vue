@@ -123,11 +123,16 @@ function initJsPlumb() {
   wireNodes()
 }
 
+// wireNodes 함수를 expose
+defineExpose({
+  wireNodes
+})
+
 function wireNodes() {
   if (!jsPlumbInstance) return
   jsPlumbInstance.deleteEveryEndpoint()
 
-  // DOM 안정화 후 바인딩
+  // DOM 안정화 후 바인딩 (성능 최적화로 인해 지연 시간 단축)
   setTimeout(() => {
     const nodes = Array.from(document.querySelectorAll('[data-side]'))
     console.log('[plumb] wireNodes found:', nodes.length)
@@ -172,7 +177,7 @@ function wireNodes() {
     // 위치 변화에 대비해서 한 번 리페인트
     jsPlumbInstance.recalculateOffsets()
     jsPlumbInstance.repaintEverything()
-  }, 120)
+  }, 50) // 120ms → 50ms로 단축
 }
 
 // SVG 라인 좌표 계산 (DOM 조작 없음)

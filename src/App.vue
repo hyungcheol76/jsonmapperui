@@ -11,7 +11,7 @@
             accept=".json"
             style="display: none;"
           />
-          <button class="file-btn" @click="$refs.sourceFileInput.click()">
+          <button class="file-btn" @click="triggerSourceFileSelect">
             파일 선택
           </button>
           <button class="file-btn" @click="loadSampleSource">
@@ -22,7 +22,9 @@
       <div class="tree-container" :class="{ 'loading': sourceLoading }">
         <div v-if="sourceLoading" class="loading-overlay">
           <div class="loading-spinner"></div>
-          <p>파일 로딩 중...</p>
+          <p>{{ sourceFileName === '파일 선택 중...' ? '파일 선택 중...' : '파일 로딩 중...' }}</p>
+          <p class="loading-filename">{{ sourceFileName }}</p>
+          <p v-if="sourceFileName !== '파일 선택 중...'" class="loading-status">스키마 트리 렌더링 중...</p>
         </div>
         <JsonTree side="src" :data="source" path="" />
       </div>
@@ -46,7 +48,7 @@
             accept=".json"
             style="display: none;"
           />
-          <button class="file-btn" @click="$refs.targetFileInput.click()">
+          <button class="file-btn" @click="triggerTargetFileSelect">
             파일 선택
           </button>
           <button class="file-btn" @click="loadSampleTarget">
@@ -57,7 +59,9 @@
       <div class="tree-container" :class="{ 'loading': targetLoading }">
         <div v-if="targetLoading" class="loading-overlay">
           <div class="loading-spinner"></div>
-          <p>파일 로딩 중...</p>
+          <p>{{ targetFileName === '파일 선택 중...' ? '파일 선택 중...' : '파일 로딩 중...' }}</p>
+          <p class="loading-filename">{{ targetFileName }}</p>
+          <p v-if="targetFileName !== '파일 선택 중...'" class="loading-status">스키마 트리 렌더링 중...</p>
         </div>
         <JsonTree side="dst" :data="target" path="" />
       </div>
@@ -92,7 +96,7 @@
 </template>
 
 <script setup>
-import { inject, watch, ref, onMounted } from 'vue'
+import { inject, watch, ref, onMounted, nextTick } from 'vue'
 import JsonTree from './components/JsonTree.vue'
 import MappingLayer from './components/MappingLayer.vue'
 import MappingPanel from './components/MappingPanel.vue'
@@ -116,23 +120,90 @@ watch(() => store.state.mappings, (newMappings) => {
   console.log('매핑 개수:', newMappings.length)
 }, { deep: true })
 
+// 파일 선택 트리거 함수들
+function triggerSourceFileSelect() {
+  if (sourceLoading.value) return // 로딩 중이면 클릭 무시
+  
+  // 파일 선택 즉시 로딩 상태 시작
+  sourceLoading.value = true
+  sourceFileName.value = '파일 선택 중...'
+  
+  // 파일 선택 창 열기
+  sourceFileInput.value?.click()
+}
+
+function triggerTargetFileSelect() {
+  if (targetLoading.value) return // 로딩 중이면 클릭 무시
+  
+  // 파일 선택 즉시 로딩 상태 시작
+  targetLoading.value = true
+  targetFileName.value = '파일 선택 중...'
+  
+  // 파일 선택 창 열기
+  targetFileInput.value?.click()
+}
+
 // 파일 로딩 함수들
 async function loadSourceFile(event) {
   const file = event.target.files[0]
-  if (!file) return
+  if (!file) {
+    // 파일이 선택되지 않았으면 로딩 상태 해제
+    sourceLoading.value = false
+    sourceFileName.value = ''
+    return
+  }
   
-  sourceLoading.value = true
+  // 파일명 업데이트
   sourceFileName.value = file.name
   
+  // Vue 반응성 업데이트를 위한 강제 지연
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
   try {
+    // 파일 크기 체크 (10MB 제한)
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('파일 크기가 너무 큽니다. 10MB 이하의 파일을 선택해주세요.')
+    }
+    
+    // 파일 읽기 최적화 - 더 빠른 방법 사용
     const text = await file.text()
-    const jsonData = JSON.parse(text)
+    
+    // JSON 파싱 최적화
+    let jsonData
+    try {
+      jsonData = JSON.parse(text)
+    } catch (error) {
+      throw new Error('JSON 파싱 실패: ' + error.message)
+    }
+    
+    // 데이터 검증
+    if (typeof jsonData !== 'object' || jsonData === null) {
+      throw new Error('유효한 JSON 객체가 아닙니다.')
+    }
+    
+    // 최소한의 지연으로 로딩 상태 표시
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
     source.value = jsonData
     console.log('소스 파일 로드 완료:', jsonData)
+    
+    // Vue DOM 업데이트 완료 대기
+    await nextTick()
+    
+    // MappingLayer 재초기화를 위한 추가 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // MappingLayer의 wireNodes 호출
+    const mappingLayer = document.querySelector('.mapping-layer')
+    if (mappingLayer && mappingLayer.__vueParentComponent?.exposed?.wireNodes) {
+      mappingLayer.__vueParentComponent.exposed.wireNodes()
+    }
+    
   } catch (error) {
     console.error('소스 파일 로드 오류:', error)
-    alert('소스 JSON 파일을 읽는 중 오류가 발생했습니다.')
+    alert(`소스 JSON 파일을 읽는 중 오류가 발생했습니다: ${error.message}`)
     sourceFileName.value = ''
+    source.value = {}
   } finally {
     sourceLoading.value = false
     // 파일 입력 초기화
@@ -169,20 +240,64 @@ async function loadSampleSource() {
 // 타겟 파일 로딩 함수들
 async function loadTargetFile(event) {
   const file = event.target.files[0]
-  if (!file) return
+  if (!file) {
+    // 파일이 선택되지 않았으면 로딩 상태 해제
+    targetLoading.value = false
+    targetFileName.value = ''
+    return
+  }
   
-  targetLoading.value = true
+  // 파일명 업데이트
   targetFileName.value = file.name
   
+  // Vue 반응성 업데이트를 위한 강제 지연
+  await new Promise(resolve => setTimeout(resolve, 50))
+  
   try {
+    // 파일 크기 체크 (10MB 제한)
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('파일 크기가 너무 큽니다. 10MB 이하의 파일을 선택해주세요.')
+    }
+    
+    // 파일 읽기 최적화 - 더 빠른 방법 사용
     const text = await file.text()
-    const jsonData = JSON.parse(text)
+    
+    // JSON 파싱 최적화
+    let jsonData
+    try {
+      jsonData = JSON.parse(text)
+    } catch (error) {
+      throw new Error('JSON 파싱 실패: ' + error.message)
+    }
+    
+    // 데이터 검증
+    if (typeof jsonData !== 'object' || jsonData === null) {
+      throw new Error('유효한 JSON 객체가 아닙니다.')
+    }
+    
+    // 최소한의 지연으로 로딩 상태 표시
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
     target.value = jsonData
     console.log('타겟 파일 로드 완료:', jsonData)
+    
+    // Vue DOM 업데이트 완료 대기
+    await nextTick()
+    
+    // MappingLayer 재초기화를 위한 추가 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // MappingLayer의 wireNodes 호출
+    const mappingLayer = document.querySelector('.mapping-layer')
+    if (mappingLayer && mappingLayer.__vueParentComponent?.exposed?.wireNodes) {
+      mappingLayer.__vueParentComponent.exposed.wireNodes()
+    }
+    
   } catch (error) {
     console.error('타겟 파일 로드 오류:', error)
-    alert('타겟 JSON 파일을 읽는 중 오류가 발생했습니다.')
+    alert(`타겟 JSON 파일을 읽는 중 오류가 발생했습니다: ${error.message}`)
     targetFileName.value = ''
+    target.value = {}
   } finally {
     targetLoading.value = false
     // 파일 입력 초기화
@@ -398,36 +513,21 @@ onMounted(async () => {
   await testConnection()
 })
 
+// 파일 입력 ref
+const sourceFileInput = ref(null)
+const targetFileInput = ref(null)
+
 // 파일 로딩 상태 관리
 const sourceLoading = ref(false)
 const sourceFileName = ref('')
 const targetLoading = ref(false)
 const targetFileName = ref('')
 
-// 소스 데이터 (반응형으로 변경)
-const source = ref({
-  employee: {
-    age: 'string',
-    city: 'string',
-    name: 'string',
-    fullInfo: 'string', // 1:N 매핑 테스트용 필드 추가
-  }
-})
+// 소스 데이터 (반응형으로 변경) - 빈 상태로 시작
+const source = ref({})
 
-// 타겟 데이터 (반응형으로 변경)
-const target = ref({
-  user: {
-    info: {
-      age: 'string',
-      cityaddress: 'string',
-    },
-    name: 'string',
-    firstName: 'string', // 1:N 매핑 테스트용 필드 추가
-    lastName: 'string',  // 1:N 매핑 테스트용 필드 추가
-    age: 'string',       // 1:N 매핑 테스트용 필드 추가
-    city: 'string'       // 1:N 매핑 테스트용 필드 추가
-  }
-})
+// 타겟 데이터 (반응형으로 변경) - 빈 상태로 시작
+const target = ref({})
 
 
 </script>
@@ -505,28 +605,30 @@ const target = ref({
 
 .loading-overlay {
   position: absolute;
-  top: 50px;
-  left: 20px;
-  right: 20px;
-  bottom: 20px;
-  background: rgba(255, 255, 255, 0.9);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.98);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 1000;
   border-radius: 8px;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .loading-spinner {
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4f46e5;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #4f46e5;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
+  width: 50px;
+  height: 50px;
   animation: spin 1s linear infinite;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(79, 70, 229, 0.3);
 }
 
 @keyframes spin {
@@ -536,10 +638,25 @@ const target = ref({
 
 .loading-overlay p {
   color: #343a40;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  margin: 0;
+  margin: 0 0 8px 0;
   text-align: center;
+}
+
+.loading-filename {
+  color: #6c757d !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  font-style: italic;
+}
+
+.loading-status {
+  color: #495057 !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  margin-top: 5px !important;
+  opacity: 0.8;
 }
 
 .center-panel {

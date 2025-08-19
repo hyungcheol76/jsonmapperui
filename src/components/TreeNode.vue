@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, nextTick } from 'vue'
 
 const props = defineProps({
   label: String,
@@ -60,13 +60,28 @@ const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
 onMounted(() => {
-  // 디버그: DOM에 잘 붙었는지
-  const el = document.querySelector(`[data-path="${props.path}"]`)
-  console.log('[node] mounted:', { path: props.path, side: props.side, isLeaf: isLeaf.value, el })
+  // 성능 최적화: 개발 모드에서만 로그 출력
+  if (import.meta.env.DEV) {
+    const el = document.querySelector(`[data-path="${props.path}"]`)
+    console.log('[node] mounted:', { path: props.path, side: props.side, isLeaf: isLeaf.value, el })
+  }
 })
 
+// 성능 최적화: 메모이제이션된 compose 함수 (캐시 크기 제한)
+const composeCache = new Map()
 function compose(path, key) {
-  return path ? `${path}.${key}` : key
+  const cacheKey = `${path}:${key}`
+  if (composeCache.has(cacheKey)) {
+    return composeCache.get(cacheKey)
+  }
+  const result = path ? `${path}.${key}` : key
+  // 캐시 크기 제한 (메모리 누수 방지)
+  if (composeCache.size > 1000) {
+    const firstKey = composeCache.keys().next().value
+    composeCache.delete(firstKey)
+  }
+  composeCache.set(cacheKey, result)
+  return result
 }
 
 function onClick() {
