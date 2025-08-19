@@ -938,6 +938,11 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ========================================
+   펑션 패널 관련 스타일 (핵심 기능)
+   ⚠️ 이 섹션의 스타일은 펑션 연결 기능에 필수적이므로 수정 시 주의
+   ======================================== */
+
 /* 상위 패널: 자체는 이벤트 안 받음 (아래 자식만) */
 .function-panel {
   position: absolute;
@@ -970,6 +975,7 @@ defineExpose({
   pointer-events: auto; /* ✅ 드롭/클릭 허용 */
 }
 
+/* 펑션 아이콘 스타일 */
 .function-icon-item {
   position: absolute;
   display: flex;
@@ -997,7 +1003,7 @@ defineExpose({
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-/* 포트는 실제 DOM으로 둡니다 (pseudo는 좌표 못 잡음) */
+/* 펑션 포트 스타일 (실제 DOM으로 둡니다 - pseudo는 좌표 못 잡음) */
 .func-port-left {
   position: absolute;
   left: -3px;
@@ -1028,6 +1034,7 @@ defineExpose({
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* 펑션 아이콘 호버 및 드래그 상태 */
 .function-icon-item:hover {
   transform: scale(1.1);
 }

@@ -265,6 +265,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ========================================
+   선 연결 기능 관련 스타일 (핵심 기능)
+   ⚠️ 이 섹션의 스타일은 선 연결 기능에 필수적이므로 수정 시 주의
+   ======================================== */
+
+/* 매핑 레이어 - 선 연결 기능의 핵심 */
 .mapping-layer {
   position: absolute;
   inset: 0;
@@ -278,9 +284,11 @@ onBeforeUnmount(() => {
 /* jsPlumb 엔드포인트가 꼭 포인터 이벤트를 받아야 함 */
 :deep(.jtk-endpoint) { pointer-events: auto; }
 
+/* jsPlumb 연결선 및 엔드포인트 z-index */
 :deep(.jtk-connector) { z-index: 1000; }
 :deep(.jtk-endpoint) { z-index: 1001; }
 
+/* jsPlumb 엔드포인트 스타일 */
 :deep(.jtk-endpoint.jtk-endpoint-anchor) {
   background-color: #4a90e2;
   border: 2px solid #357abd;

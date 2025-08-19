@@ -1,0 +1,27 @@
+{
+  "user": {
+    "info": {
+      "age": "string",
+      "cityaddress": "string",
+      "department": "string"
+    },
+    "name": "string",
+    "firstName": "string",
+    "lastName": "string",
+    "age": "string",
+    "city": "string",
+    "profile": {
+      "skills": ["string"],
+      "experience": "string"
+    }
+  },
+  "organization": {
+    "name": "string",
+    "location": {
+      "address": "string",
+      "city": "string",
+      "country": "string"
+    },
+    "members": ["string"]
+  }
+} 

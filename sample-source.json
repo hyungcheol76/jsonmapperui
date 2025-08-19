@@ -1,0 +1,27 @@
+{
+  "employee": {
+    "age": "string",
+    "city": "string",
+    "name": "string",
+    "fullInfo": "string",
+    "department": {
+      "name": "string",
+      "code": "string"
+    },
+    "skills": ["string"],
+    "metadata": {
+      "created": "string",
+      "updated": "string",
+      "version": "string"
+    }
+  },
+  "company": {
+    "name": "string",
+    "address": {
+      "street": "string",
+      "city": "string",
+      "country": "string"
+    },
+    "employees": ["string"]
+  }
+} 
