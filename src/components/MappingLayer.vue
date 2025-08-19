@@ -253,7 +253,8 @@ function addScrollListeners() {
 
 // wireNodes 함수를 expose
 defineExpose({
-  wireNodes
+  wireNodes,
+  updateConnections
 })
 
 function wireNodes() {
@@ -305,6 +306,11 @@ function wireNodes() {
     // 위치 변화에 대비해서 한 번 리페인트
     jsPlumbInstance.recalculateOffsets()
     jsPlumbInstance.repaintEverything()
+    
+    // 연결선 업데이트도 함께 실행
+    setTimeout(() => {
+      updateConnections()
+    }, 100)
   }, 50) // 120ms → 50ms로 단축
 }
 
