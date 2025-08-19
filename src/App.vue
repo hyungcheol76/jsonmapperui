@@ -220,6 +220,19 @@ async function loadSampleSource() {
     const jsonData = await response.json()
     source.value = jsonData
     console.log('샘플 소스 데이터 로드 완료:', jsonData)
+    
+    // Vue DOM 업데이트 완료 대기
+    await nextTick()
+    
+    // MappingLayer 재초기화를 위한 추가 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // MappingLayer의 wireNodes 호출
+    const mappingLayer = document.querySelector('.mapping-layer')
+    if (mappingLayer && mappingLayer.__vueParentComponent?.exposed?.wireNodes) {
+      mappingLayer.__vueParentComponent.exposed.wireNodes()
+    }
+    
   } catch (error) {
     console.error('샘플 소스 파일 로드 오류:', error)
     // 폴백: 기본 데이터 사용
@@ -314,6 +327,19 @@ async function loadSampleTarget() {
     const jsonData = await response.json()
     target.value = jsonData
     console.log('샘플 타겟 데이터 로드 완료:', jsonData)
+    
+    // Vue DOM 업데이트 완료 대기
+    await nextTick()
+    
+    // MappingLayer 재초기화를 위한 추가 대기
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // MappingLayer의 wireNodes 호출
+    const mappingLayer = document.querySelector('.mapping-layer')
+    if (mappingLayer && mappingLayer.__vueParentComponent?.exposed?.wireNodes) {
+      mappingLayer.__vueParentComponent.exposed.wireNodes()
+    }
+    
   } catch (error) {
     console.error('샘플 타겟 파일 로드 오류:', error)
     // 폴백: 기본 데이터 사용

@@ -690,16 +690,21 @@ function generateTemplateCode(connectionType, sourceParams, targetParams) {
 return { result: sourceValue.toUpperCase() };`
       
     case 'N:1':
-      const sourceExamples = sourceParams.slice(0, 2)
+      // 모든 소스 파라미터를 사용하여 동적으로 코드 생성
+      const sourceParamExpressions = sourceParams.map(param => `sourceParams['${param}']`).join(" + ' ' + ")
       return `// N:1 매핑 (여러 소스 → 단일 타겟)
-return { result: sourceParams['${sourceExamples[0]}'] + ' ' + sourceParams['${sourceExamples[1]}'] };`
+return { result: ${sourceParamExpressions} };`
       
     case '1:N':
-      const targetExamples = targetParams.slice(0, 3)
+      // 모든 타겟 파라미터를 사용하여 동적으로 코드 생성
+      const targetParamExpressions = targetParams.map((param, index) => {
+        const fieldName = param.split('.').pop()
+        return `${fieldName}: { value: parts[${index}]?.trim(), path: '${param}' }`
+      }).join(',\n  ')
       return `// 1:N 매핑 (단일 소스 → 여러 타겟)
 const parts = sourceValue.split(',');
 return {
-  ${targetExamples.map(param => `${param.split('.').pop()}: { value: parts[0]?.trim(), path: '${param}' }`).join(',\n  ')}
+  ${targetParamExpressions}
 };`
       
     default:

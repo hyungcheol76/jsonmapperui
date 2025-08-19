@@ -7,19 +7,26 @@
       "type": "direct"
     },
     {
-      "from": "employee.city",
-      "to": "function:1755578098653",
-      "op": "copy",
-      "type": "function-input",
-      "functionId": 1755578098653
-    },
-    {
-      "from": "function:1755578098653",
+      "from": "function:1755579891575",
       "to": "user.info.cityaddress",
       "op": "function",
       "type": "function-output",
-      "functionId": 1755578098653,
-      "script": "// 1:1 매핑 (단일 소스 → 단일 타겟)\nreturn { result: sourceValue.toUpperCase() };"
+      "functionId": 1755579891575,
+      "script": "// N:1 매핑 (여러 소스 → 단일 타겟)\nreturn { result: sourceParams['employee.city'] + ' ' + sourceParams['employee.age'] };"
+    },
+    {
+      "from": "employee.city",
+      "to": "function:1755579891575",
+      "op": "copy",
+      "type": "function-input",
+      "functionId": 1755579891575
+    },
+    {
+      "from": "employee.age",
+      "to": "function:1755579891575",
+      "op": "copy",
+      "type": "function-input",
+      "functionId": 1755579891575
     }
   ]
 }
