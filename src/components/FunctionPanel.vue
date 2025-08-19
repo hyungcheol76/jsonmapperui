@@ -970,7 +970,7 @@ defineExpose({
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none !important;
+  pointer-events: none; /* 기본적으로 이벤트 비활성화 */
   overflow: visible; /* 음수 좌표 허용 */
   z-index: 99999; /* 더 높은 z-index로 설정 */
 }
@@ -1354,6 +1354,7 @@ defineExpose({
   stroke-dasharray: 5 5;
   cursor: pointer;
   transition: stroke-width 0.2s ease;
+  pointer-events: auto !important; /* 클릭 이벤트 허용 */
 }
 
 .function-connection-line:hover {
@@ -1367,6 +1368,7 @@ defineExpose({
   stroke-dasharray: 3 3;
   cursor: pointer;
   transition: stroke-width 0.2s ease, stroke 0.2s ease;
+  pointer-events: auto !important; /* 클릭 이벤트 허용 */
 }
 
 .function-to-target-line:hover {
