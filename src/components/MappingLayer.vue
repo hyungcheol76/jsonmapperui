@@ -123,6 +123,22 @@ function initJsPlumb() {
   wireNodes()
 }
 
+// 스크롤 이벤트 리스너 추가
+function addScrollListeners() {
+  const sourceContainer = document.querySelector('.pane:first-child .tree-container')
+  const targetContainer = document.querySelector('.pane:last-child .tree-container')
+  
+  if (sourceContainer) {
+    sourceContainer.addEventListener('scroll', updateConnections, { passive: true })
+    console.log('소스 컨테이너 스크롤 리스너 추가됨')
+  }
+  
+  if (targetContainer) {
+    targetContainer.addEventListener('scroll', updateConnections, { passive: true })
+    console.log('타겟 컨테이너 스크롤 리스너 추가됨')
+  }
+}
+
 // wireNodes 함수를 expose
 defineExpose({
   wireNodes
@@ -269,6 +285,9 @@ onMounted(() => {
       console.log('DOM 준비 완료, 초기화 시작...')
       initJsPlumb()
       updateConnections()
+      
+      // 스크롤 이벤트 리스너 추가
+      addScrollListeners()
     } else {
       console.log('DOM 아직 준비되지 않음, 재시도...')
       setTimeout(waitForDOM, 100)
@@ -289,6 +308,19 @@ watch(() => store.state.mappings, () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateConnections)
+  
+  // 스크롤 이벤트 리스너 제거
+  const sourceContainer = document.querySelector('.pane:first-child .tree-container')
+  const targetContainer = document.querySelector('.pane:last-child .tree-container')
+  
+  if (sourceContainer) {
+    sourceContainer.removeEventListener('scroll', updateConnections)
+  }
+  
+  if (targetContainer) {
+    targetContainer.removeEventListener('scroll', updateConnections)
+  }
+  
   if (jsPlumbInstance) jsPlumbInstance.destroy()
 })
 </script>
