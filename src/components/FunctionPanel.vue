@@ -1358,6 +1358,7 @@ defineExpose({
 
 .function-connection-line:hover {
   stroke-dasharray: none;
+  stroke-width: 3; /* 호버 시 선 굵어짐 */
 }
 
 /* F → 타겟 연결선 스타일 */
@@ -1371,5 +1372,6 @@ defineExpose({
 .function-to-target-line:hover {
   stroke-dasharray: none;
   stroke: #ff6b6b; /* 호버 시 더 밝은 붉은색 */
+  stroke-width: 3; /* 호버 시 선 굵어짐 */
 }
 </style>

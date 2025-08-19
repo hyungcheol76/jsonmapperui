@@ -31,6 +31,11 @@ const store = inject('store')
 const mappingLayer = ref(null)
 let jsPlumbInstance = null
 
+// 이벤트 리스너 함수들 (참조 저장용)
+let resizeHandler = null
+let sourceScrollHandler = null
+let targetScrollHandler = null
+
 // 직접 매핑만 필터링 (펑션 매핑 제외)
 const directMappings = computed(() => {
   if (!store.state.mappings) return []
@@ -123,18 +128,125 @@ function initJsPlumb() {
   wireNodes()
 }
 
+// 동적 영역 계산 함수
+function calculateVisibleArea() {
+  const sourceContainer = document.querySelector('.pane:first-child .tree-container')
+  const targetContainer = document.querySelector('.pane:last-child .tree-container')
+  const mappingLayer = document.querySelector('.mapping-layer')
+  
+  if (!sourceContainer || !targetContainer || !mappingLayer) {
+    console.log('컨테이너 요소를 찾을 수 없음')
+    return null
+  }
+  
+  // 소스 트리 컨테이너의 전체 영역 (헤더 제외)
+  const sourceRect = sourceContainer.getBoundingClientRect()
+  const sourceLeft = sourceRect.left
+  const sourceRight = sourceRect.left + sourceRect.width
+  const sourceTop = sourceRect.top
+  const sourceBottom = sourceRect.top + sourceRect.height
+  
+  // 타겟 트리 컨테이너의 전체 영역 (헤더 제외)
+  const targetRect = targetContainer.getBoundingClientRect()
+  const targetLeft = targetRect.left
+  const targetRight = targetRect.left + targetRect.width
+  const targetTop = targetRect.top
+  const targetBottom = targetRect.top + targetRect.height
+  
+  // 매핑 레이어 기준으로 변환
+  const mappingRect = mappingLayer.getBoundingClientRect()
+  const sourceLeftRel = sourceLeft - mappingRect.left
+  const sourceRightRel = sourceRight - mappingRect.left
+  const sourceTopRel = sourceTop - mappingRect.top
+  const sourceBottomRel = sourceBottom - mappingRect.top
+  const targetLeftRel = targetLeft - mappingRect.left
+  const targetRightRel = targetRight - mappingRect.left
+  const targetTopRel = targetTop - mappingRect.top
+  const targetBottomRel = targetBottom - mappingRect.top
+  
+  console.log('영역 계산:', {
+    sourceLeft: sourceLeft,
+    sourceRight: sourceRight,
+    sourceTop: sourceTop,
+    sourceBottom: sourceBottom,
+    targetLeft: targetLeft,
+    targetRight: targetRight,
+    targetTop: targetTop,
+    targetBottom: targetBottom,
+    mappingLeft: mappingRect.left,
+    mappingTop: mappingRect.top,
+    sourceLeftRel: sourceLeftRel,
+    sourceRightRel: sourceRightRel,
+    sourceTopRel: sourceTopRel,
+    sourceBottomRel: sourceBottomRel,
+    targetLeftRel: targetLeftRel,
+    targetRightRel: targetRightRel,
+    targetTopRel: targetTopRel,
+    targetBottomRel: targetBottomRel
+  })
+  
+  return { 
+    sourceLeftRel, sourceRightRel, sourceTopRel, sourceBottomRel,
+    targetLeftRel, targetRightRel, targetTopRel, targetBottomRel
+  }
+}
+
+// CSS clip-path 동적 적용
+function updateClipPath() {
+  const area = calculateVisibleArea()
+  if (!area) return
+  
+  const { 
+    sourceLeftRel, sourceRightRel, sourceTopRel, sourceBottomRel,
+    targetLeftRel, targetRightRel, targetTopRel, targetBottomRel 
+  } = area
+  const mappingLayer = document.querySelector('.mapping-layer')
+  
+  if (mappingLayer) {
+    // 트리 컨테이너 영역만 표시 (헤더 제외)
+    const topBoundary = Math.min(sourceTopRel, targetTopRel)
+    const bottomBoundary = Math.max(sourceBottomRel, targetBottomRel)
+    
+    mappingLayer.style.clipPath = `
+      polygon(
+        ${sourceLeftRel}px ${topBoundary}px,
+        ${targetRightRel}px ${topBoundary}px,
+        ${targetRightRel}px ${bottomBoundary}px,
+        ${sourceLeftRel}px ${bottomBoundary}px
+      )
+    `
+    console.log('clip-path 업데이트됨:', mappingLayer.style.clipPath)
+  }
+}
+
+// 이벤트 핸들러 함수들 정의
+resizeHandler = () => {
+  updateConnections()
+  updateClipPath()
+}
+
+sourceScrollHandler = () => {
+  updateConnections()
+  updateClipPath()
+}
+
+targetScrollHandler = () => {
+  updateConnections()
+  updateClipPath()
+}
+
 // 스크롤 이벤트 리스너 추가
 function addScrollListeners() {
   const sourceContainer = document.querySelector('.pane:first-child .tree-container')
   const targetContainer = document.querySelector('.pane:last-child .tree-container')
   
   if (sourceContainer) {
-    sourceContainer.addEventListener('scroll', updateConnections, { passive: true })
+    sourceContainer.addEventListener('scroll', sourceScrollHandler, { passive: true })
     console.log('소스 컨테이너 스크롤 리스너 추가됨')
   }
   
   if (targetContainer) {
-    targetContainer.addEventListener('scroll', updateConnections, { passive: true })
+    targetContainer.addEventListener('scroll', targetScrollHandler, { passive: true })
     console.log('타겟 컨테이너 스크롤 리스너 추가됨')
   }
 }
@@ -238,18 +350,69 @@ function updateConnections() {
       try {
         const sourceRect = sourceElement.getBoundingClientRect()
         const targetRect = targetElement.getBoundingClientRect()
+        
+        // 소스/타겟 컨테이너 경계 확인
+        const sourceContainer = document.querySelector('.pane:first-child .tree-container')
+        const targetContainer = document.querySelector('.pane:last-child .tree-container')
+        const sourceContainerRect = sourceContainer?.getBoundingClientRect()
+        const targetContainerRect = targetContainer?.getBoundingClientRect()
 
-        // SVG 기준 상대좌표
-        const startX = sourceRect.right - svgRect.left
-        const startY = sourceRect.top + sourceRect.height / 2 - svgRect.top
-        const endX = targetRect.left - svgRect.left
-        const endY = targetRect.top + targetRect.height / 2 - svgRect.top
+        // 가시성 체크 및 경계 조정
+        let startX, startY, endX, endY
+        
+        // 소스 엘리먼트가 컨테이너 밖에 있는지 확인
+        if (sourceContainerRect && sourceRect.right > sourceContainerRect.right) {
+          // 소스가 컨테이너 오른쪽 경계를 벗어남 - 컨테이너 경계에서 시작
+          startX = sourceContainerRect.right - svgRect.left
+          startY = sourceRect.top + sourceRect.height / 2 - svgRect.top
+        } else {
+          // 정상적인 경우
+          startX = sourceRect.right - svgRect.left
+          startY = sourceRect.top + sourceRect.height / 2 - svgRect.top
+        }
+        
+        // 타겟 엘리먼트의 가시성 체크
+        if (targetContainerRect) {
+          // 타겟 엘리먼트가 컨테이너 상단을 벗어나는지 확인
+          if (targetRect.top < targetContainerRect.top) {
+            // 타겟이 컨테이너 상단을 벗어남 - 컨테이너 상단에서 끝남
+            endX = targetRect.left - svgRect.left
+            endY = targetContainerRect.top + targetRect.height / 2 - svgRect.top
+          }
+          // 타겟 엘리먼트가 컨테이너 하단을 벗어나는지 확인
+          else if (targetRect.bottom > targetContainerRect.bottom) {
+            // 타겟이 컨테이너 하단을 벗어남 - 컨테이너 하단에서 끝남
+            endX = targetRect.left - svgRect.left
+            endY = targetContainerRect.bottom - targetRect.height / 2 - svgRect.top
+          }
+          // 타겟 엘리먼트가 컨테이너 왼쪽을 벗어나는지 확인
+          else if (targetRect.left < targetContainerRect.left) {
+            // 타겟이 컨테이너 왼쪽 경계를 벗어남 - 컨테이너 경계에서 끝남
+            endX = targetContainerRect.left - svgRect.left
+            endY = targetRect.top + targetRect.height / 2 - svgRect.top
+          }
+          else {
+            // 정상적인 경우
+            endX = targetRect.left - svgRect.left
+            endY = targetRect.top + targetRect.height / 2 - svgRect.top
+          }
+        } else {
+          // 컨테이너를 찾을 수 없는 경우 기본값
+          endX = targetRect.left - svgRect.left
+          endY = targetRect.top + targetRect.height / 2 - svgRect.top
+        }
 
         // 베지어 곡선으로 연결선 경로 생성
         const midX = (startX + endX) / 2
         mapping.path = `M ${startX} ${startY} Q ${midX} ${startY} ${endX} ${endY}`
         
-        console.log(`매핑 ${index + 1}: 연결선 경로 계산 완료`, mapping.path)
+        console.log(`매핑 ${index + 1}: 연결선 경로 계산 완료 (가시성 체크 적용)`, {
+          originalSourceX: sourceRect.right - svgRect.left,
+          adjustedSourceX: startX,
+          originalTargetX: targetRect.left - svgRect.left,
+          adjustedTargetX: endX,
+          path: mapping.path
+        })
       } catch (e) {
         console.error(`매핑 ${index + 1}: 좌표 계산 오류`, e)
       }
@@ -286,6 +449,9 @@ onMounted(() => {
       initJsPlumb()
       updateConnections()
       
+      // 초기 clip-path 설정
+      updateClipPath()
+      
       // 스크롤 이벤트 리스너 추가
       addScrollListeners()
     } else {
@@ -297,7 +463,7 @@ onMounted(() => {
   // 초기 렌더 안정화 후 DOM 준비 확인
   setTimeout(waitForDOM, 250)
 
-  window.addEventListener('resize', updateConnections, { passive: true })
+  window.addEventListener('resize', resizeHandler, { passive: true })
   
   console.log('=== MappingLayer 컴포넌트 마운트 완료 ===')
 })
@@ -307,18 +473,18 @@ watch(() => store.state.mappings, () => {
 }, { deep: true })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateConnections)
+  window.removeEventListener('resize', resizeHandler)
   
   // 스크롤 이벤트 리스너 제거
   const sourceContainer = document.querySelector('.pane:first-child .tree-container')
   const targetContainer = document.querySelector('.pane:last-child .tree-container')
   
   if (sourceContainer) {
-    sourceContainer.removeEventListener('scroll', updateConnections)
+    sourceContainer.removeEventListener('scroll', sourceScrollHandler)
   }
   
   if (targetContainer) {
-    targetContainer.removeEventListener('scroll', updateConnections)
+    targetContainer.removeEventListener('scroll', targetScrollHandler)
   }
   
   if (jsPlumbInstance) jsPlumbInstance.destroy()
